@@ -6,7 +6,8 @@ struct TimesTableApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             SchoolClass.self,
-            StudyTask.self
+            StudyTask.self,
+            ClassPreset.self
         ])
 
         // Using simple local storage.

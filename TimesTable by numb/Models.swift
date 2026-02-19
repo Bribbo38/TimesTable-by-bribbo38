@@ -56,6 +56,29 @@ final class SchoolClass {
     }
 }
 
+// MARK: - ClassPreset
+
+@Model
+final class ClassPreset {
+    var id: UUID
+    var name: String
+    var room: String?
+    var teacher: String?
+    var hexColor: String
+
+    init(name: String, room: String? = nil, teacher: String? = nil, hexColor: String = "#0A84FF") {
+        self.id = UUID()
+        self.name = name
+        self.room = room
+        self.teacher = teacher
+        self.hexColor = hexColor
+    }
+
+    var color: Color {
+        Color(hex: hexColor) ?? .blue
+    }
+}
+
 // MARK: - StudyTask
 
 @Model

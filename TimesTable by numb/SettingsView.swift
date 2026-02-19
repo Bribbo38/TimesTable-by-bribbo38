@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     @AppStorage("showWeekends") private var showWeekends = true
     @AppStorage("numberOfWeeks") private var numberOfWeeks = 1
+    @AppStorage("repeatingWeeksEnabled") private var repeatingWeeksEnabled = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("iCloudEnabled") private var iCloudEnabled = false
 
@@ -36,16 +37,33 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
 
-                settingsGroup(title: "Schedule", icon: "calendar", iconColors: [.blue, .cyan]) {
+                settingsGroup(title: String(localized: "Schedule"), icon: "calendar", iconColors: [.blue, .cyan]) {
                     Toggle("Show Weekends", isOn: $showWeekends)
                     Divider()
-                    Stepper(value: $numberOfWeeks, in: 1...4) {
+                    Toggle("Repeating Weeks", isOn: $repeatingWeeksEnabled)
+                    if repeatingWeeksEnabled {
+                        Divider()
                         HStack {
-                            Text("Repeating Weeks")
+                            Text("Repeat Every")
                             Spacer()
-                            Text("\(numberOfWeeks)")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                            Picker("", selection: $numberOfWeeks) {
+                                Text("1 \(String(localized: "week"))").tag(1)
+                                Text("2 \(String(localized: "weeks"))").tag(2)
+                                Text("3 \(String(localized: "weeks"))").tag(3)
+                                Text("4 \(String(localized: "weeks"))").tag(4)
+                            }
+                            .labelsHidden()
+                        }
+                    } else {
+                        Divider()
+                        Stepper(value: $numberOfWeeks, in: 1...4) {
+                            HStack {
+                                Text("Number of Weeks")
+                                Spacer()
+                                Text("\(numberOfWeeks)")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
                     }
                 }
@@ -136,13 +154,29 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Show Weekends", isOn: $showWeekends)
-                Stepper(value: $numberOfWeeks, in: 1...4) {
+                Toggle("Repeating Weeks", isOn: $repeatingWeeksEnabled)
+                if repeatingWeeksEnabled {
                     HStack {
-                        Text("Repeating Weeks")
+                        Text("Repeat Every")
                         Spacer()
-                        Text("\(numberOfWeeks)")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                        Picker("", selection: $numberOfWeeks) {
+                            Text("1 \(String(localized: "week"))").tag(1)
+                            Text("2 \(String(localized: "weeks"))").tag(2)
+                            Text("3 \(String(localized: "weeks"))").tag(3)
+                            Text("4 \(String(localized: "weeks"))").tag(4)
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                    }
+                } else {
+                    Stepper(value: $numberOfWeeks, in: 1...4) {
+                        HStack {
+                            Text("Number of Weeks")
+                            Spacer()
+                            Text("\(numberOfWeeks)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
                     }
                 }
             } header: {

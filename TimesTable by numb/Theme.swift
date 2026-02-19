@@ -170,11 +170,11 @@ extension View {
 // MARK: - Gradient Text
 
 struct GradientText: View {
-    let text: String
+    let text: LocalizedStringKey
     let font: Font
     let colors: [Color]
 
-    init(_ text: String, font: Font = .title2.bold(), colors: [Color] = [Color(hex: "#0A84FF") ?? .blue, Color(hex: "#BF5AF2") ?? .purple]) {
+    init(_ text: LocalizedStringKey, font: Font = .title2.bold(), colors: [Color] = [Color(hex: "#0A84FF") ?? .blue, Color(hex: "#BF5AF2") ?? .purple]) {
         self.text = text
         self.font = font
         self.colors = colors

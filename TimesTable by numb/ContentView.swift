@@ -1,6 +1,15 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Navigation Destinations (iOS hamburger menu)
+
+enum AppDestination: Hashable {
+    case tasks
+    case settings
+}
+
+// MARK: - Root Content View
+
 struct ContentView: View {
     @State private var selectedDay: Int = {
         let w = Calendar.current.component(.weekday, from: Date())
@@ -8,23 +17,64 @@ struct ContentView: View {
     }()
 
     var body: some View {
+#if os(iOS)
+        iOSRootView
+            .tint(Color(hex: "#0A84FF"))
+#else
         NavigationSplitView {
             SidebarView(selectedDay: $selectedDay)
         } detail: {
             ScheduleView(selectedDay: $selectedDay)
         }
-#if os(iOS)
-        .tint(Color(hex: "#0A84FF"))
 #endif
     }
+
+#if os(iOS)
+    @State private var navigationPath = NavigationPath()
+
+    private var iOSRootView: some View {
+        NavigationStack(path: $navigationPath) {
+            ScheduleView(selectedDay: $selectedDay)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Menu {
+                            Button {
+                                navigationPath.append(AppDestination.tasks)
+                            } label: {
+                                Label("Tasks", systemImage: "checklist")
+                            }
+                            Button {
+                                navigationPath.append(AppDestination.settings)
+                            } label: {
+                                Label("Settings", systemImage: "gearshape.fill")
+                            }
+                        } label: {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.title2)
+                                .foregroundStyle(
+                                    LinearGradient(colors: [Color(hex: "#0A84FF") ?? .blue, Color(hex: "#5E5CE6") ?? .indigo],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                        }
+                    }
+                }
+                .navigationDestination(for: AppDestination.self) { destination in
+                    switch destination {
+                    case .tasks:
+                        TaskListView()
+                    case .settings:
+                        SettingsView()
+                    }
+                }
+        }
+    }
+#endif
 }
 
-// MARK: - Sidebar
+// MARK: - Sidebar (macOS only)
 
 struct SidebarView: View {
     @Binding var selectedDay: Int
-
-    private let items: [(String, String, AnyView)] = []
 
     var body: some View {
         List {
@@ -70,6 +120,10 @@ struct ScheduleView: View {
     @Query(sort: \SchoolClass.startTime) private var classes: [SchoolClass]
     @State private var showingAddClass = false
     @AppStorage("showWeekends") private var showWeekends = true
+    @AppStorage("numberOfWeeks") private var numberOfWeeks = 1
+    @AppStorage("repeatingWeeksEnabled") private var repeatingWeeksEnabled = false
+
+    @State private var selectedWeek: Int = 1
 
     @Environment(\.horizontalSizeClass) private var hSizeClass
 #if os(iOS)
@@ -84,11 +138,16 @@ struct ScheduleView: View {
 #endif
     }
 
+    // Use Calendar API for auto-localized day names
     private var dayTags: [(Int, String, String)] {
-        let all: [(Int, String, String)] = [
-            (1, "Mon", "M"), (2, "Tue", "T"), (3, "Wed", "W"),
-            (4, "Thu", "T"), (5, "Fri", "F"), (6, "Sat", "S"), (7, "Sun", "S")
-        ]
+        let cal = Calendar.current
+        let short = cal.shortWeekdaySymbols    // ["Sun","Mon",..."Sat"]
+        let veryShort = cal.veryShortWeekdaySymbols
+        // App uses 1=Mon...7=Sun; Calendar uses 0=Sun,1=Mon...6=Sat
+        let all: [(Int, String, String)] = (1...7).map { tag in
+            let calIndex = tag % 7  // 1→1, 2→2, ..., 6→6, 7→0
+            return (tag, short[calIndex], veryShort[calIndex])
+        }
         return showWeekends ? all : Array(all.prefix(5))
     }
 
@@ -97,8 +156,17 @@ struct ScheduleView: View {
         return w == 1 ? 7 : w - 1
     }
 
+    /// Determine current cycle week when repeating is enabled
+    private var currentCycleWeek: Int {
+        let weekOfYear = Calendar.current.component(.weekOfYear, from: Date())
+        return ((weekOfYear - 1) % numberOfWeeks) + 1
+    }
+
     var filteredClasses: [SchoolClass] {
-        classes.filter { $0.dayOfWeek == selectedDay }
+        if numberOfWeeks > 1 {
+            return classes.filter { $0.dayOfWeek == selectedDay && $0.weekIndex == selectedWeek }
+        }
+        return classes.filter { $0.dayOfWeek == selectedDay }
     }
 
     var body: some View {
@@ -132,7 +200,12 @@ struct ScheduleView: View {
             }
         }
         .sheet(isPresented: $showingAddClass) {
-            AddEditClassView()
+            AddEditClassView(defaultWeekIndex: selectedWeek)
+        }
+        .onAppear {
+            if repeatingWeeksEnabled && numberOfWeeks > 1 {
+                selectedWeek = currentCycleWeek
+            }
         }
 #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
@@ -145,12 +218,60 @@ struct ScheduleView: View {
 
     private var portraitView: some View {
         VStack(spacing: 0) {
+            if numberOfWeeks > 1 {
+                weekPickerBar
+            }
             dayPickerBar
             if filteredClasses.isEmpty {
                 emptyState
             } else {
                 classList
             }
+        }
+    }
+
+    // MARK: Week Picker (pills)
+
+    private var weekPickerBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(1...numberOfWeeks, id: \.self) { week in
+                    Button {
+                        withAnimation(AppTheme.smooth) {
+                            selectedWeek = week
+                        }
+#if os(iOS)
+                        Haptic.selection()
+#endif
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("W\(week)")
+                                .font(.subheadline.bold())
+                            if repeatingWeeksEnabled && week == currentCycleWeek {
+                                Circle()
+                                    .fill(Color(hex: "#30D158") ?? .green)
+                                    .frame(width: 5, height: 5)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedWeek == week
+                                ? AnyShapeStyle(LinearGradient(
+                                    colors: [Color(hex: "#0A84FF") ?? .blue, Color(hex: "#5E5CE6") ?? .indigo],
+                                    startPoint: .leading, endPoint: .trailing
+                                  ))
+                                : AnyShapeStyle(Color.secondary.opacity(0.1))
+                        )
+                        .foregroundStyle(selectedWeek == week ? .white : .primary)
+                        .clipShape(Capsule())
+                        .shadow(color: selectedWeek == week ? (Color(hex: "#0A84FF") ?? .blue).opacity(0.3) : .clear, radius: 4, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 

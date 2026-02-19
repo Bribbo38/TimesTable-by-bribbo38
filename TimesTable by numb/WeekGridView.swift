@@ -4,11 +4,16 @@ import SwiftData
 struct WeekGridView: View {
     @Query(sort: \SchoolClass.startTime) private var classes: [SchoolClass]
     @AppStorage("showWeekends") private var showWeekends = true
+    @AppStorage("numberOfWeeks") private var numberOfWeeks = 1
+    @AppStorage("repeatingWeeksEnabled") private var repeatingWeeksEnabled = false
+    @State private var selectedWeek: Int = 1
 
     private var days: [(Int, String)] {
-        showWeekends
-            ? [(1,"Mon"),(2,"Tue"),(3,"Wed"),(4,"Thu"),(5,"Fri"),(6,"Sat"),(7,"Sun")]
-            : [(1,"Mon"),(2,"Tue"),(3,"Wed"),(4,"Thu"),(5,"Fri")]
+        let short = Calendar.current.shortWeekdaySymbols
+        let all: [(Int, String)] = (1...7).map { tag in
+            (tag, short[tag % 7])
+        }
+        return showWeekends ? all : Array(all.prefix(5))
     }
 
     private var todayIndex: Int {
@@ -33,6 +38,52 @@ struct WeekGridView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if numberOfWeeks > 1 {
+                weekPickerBar
+            }
+            gridContent
+        }
+        .navigationTitle("Week View")
+        .onAppear {
+            if repeatingWeeksEnabled && numberOfWeeks > 1 {
+                let weekOfYear = Calendar.current.component(.weekOfYear, from: Date())
+                selectedWeek = ((weekOfYear - 1) % numberOfWeeks) + 1
+            }
+        }
+    }
+
+    private var weekPickerBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(1...numberOfWeeks, id: \.self) { week in
+                    Button {
+                        withAnimation(AppTheme.smooth) { selectedWeek = week }
+                    } label: {
+                        Text("W\(week)")
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                selectedWeek == week
+                                    ? AnyShapeStyle(LinearGradient(
+                                        colors: [Color(hex: "#0A84FF") ?? .blue, Color(hex: "#5E5CE6") ?? .indigo],
+                                        startPoint: .leading, endPoint: .trailing
+                                      ))
+                                    : AnyShapeStyle(Color.secondary.opacity(0.1))
+                            )
+                            .foregroundStyle(selectedWeek == week ? .white : .primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private var gridContent: some View {
         ScrollView([.horizontal, .vertical]) {
             HStack(alignment: .top, spacing: 0) {
                 // Time column
@@ -105,7 +156,9 @@ struct WeekGridView: View {
                             }
 
                             // Class blocks
-                            ForEach(classes.filter { $0.dayOfWeek == dayIndex }) { sc in
+                            ForEach(classes.filter {
+                                $0.dayOfWeek == dayIndex && (numberOfWeeks <= 1 || $0.weekIndex == selectedWeek)
+                            }) { sc in
                                 ClassBlock(schoolClass: sc, startHour: startHour, hourHeight: hourHeight)
                             }
                         }
@@ -117,7 +170,6 @@ struct WeekGridView: View {
                 }
             }
         }
-        .navigationTitle("Week View")
     }
 }
 

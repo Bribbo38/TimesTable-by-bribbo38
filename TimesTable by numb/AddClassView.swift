@@ -5,7 +5,10 @@ struct AddEditClassView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @Query(sort: \ClassPreset.name) private var presets: [ClassPreset]
+
     var existingClass: SchoolClass?
+    var defaultWeekIndex: Int = 1
 
     @State private var name = ""
     @State private var room = ""
@@ -19,6 +22,7 @@ struct AddEditClassView: View {
     @State private var customColor: Color = Color(hex: "#0A84FF") ?? .blue
 
     @AppStorage("numberOfWeeks") private var numberOfWeeks = 1
+    @AppStorage("repeatingWeeksEnabled") private var repeatingWeeksEnabled = false
 
     private var isEditing: Bool { existingClass != nil }
 
@@ -31,6 +35,53 @@ struct AddEditClassView: View {
                     // MARK: Live Preview (top)
                     previewCard
                         .padding(.top, 8)
+
+                    // MARK: Preset Picker (only for new classes)
+                    if !isEditing && !presets.isEmpty {
+                        formSection(title: String(localized: "Use Preset"), icon: "rectangle.stack.fill", iconColors: [.indigo, .purple]) {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(presets) { preset in
+                                        Button {
+                                            withAnimation(AppTheme.smooth) {
+                                                name = preset.name
+                                                room = preset.room ?? ""
+                                                teacher = preset.teacher ?? ""
+                                                selectedColor = preset.hexColor
+                                                customColor = preset.color
+                                            }
+#if os(iOS)
+                                            Haptic.selection()
+#endif
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                Circle()
+                                                    .fill(preset.color)
+                                                    .frame(width: 10, height: 10)
+                                                Text(preset.name)
+                                                    .font(.subheadline.bold())
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                name == preset.name
+                                                    ? AnyShapeStyle(preset.color.opacity(0.15))
+                                                    : AnyShapeStyle(Color.secondary.opacity(0.08))
+                                            )
+                                            .foregroundStyle(name == preset.name ? preset.color : .primary)
+                                            .clipShape(Capsule())
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(name == preset.name ? preset.color.opacity(0.3) : Color.clear, lineWidth: 1)
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // MARK: Basic Info
                     formSection(title: "Basic Info", icon: "info.circle.fill", iconColors: [.blue, .cyan]) {
@@ -52,20 +103,16 @@ struct AddEditClassView: View {
                     }
 
                     // MARK: Schedule
-                    formSection(title: "Schedule", icon: "clock.fill", iconColors: [.orange, .yellow]) {
+                    formSection(title: String(localized: "Schedule"), icon: "clock.fill", iconColors: [.orange, .yellow]) {
                         HStack {
                             Label("Day", systemImage: "calendar")
                                 .foregroundStyle(.secondary)
                                 .font(.subheadline)
                             Spacer()
                             Picker("", selection: $dayOfWeek) {
-                                Text("Monday").tag(1)
-                                Text("Tuesday").tag(2)
-                                Text("Wednesday").tag(3)
-                                Text("Thursday").tag(4)
-                                Text("Friday").tag(5)
-                                Text("Saturday").tag(6)
-                                Text("Sunday").tag(7)
+                                ForEach(1...7, id: \.self) { tag in
+                                    Text(Calendar.current.weekdaySymbols[tag % 7]).tag(tag)
+                                }
                             }
                             .labelsHidden()
 #if os(iOS)
@@ -354,7 +401,10 @@ struct AddEditClassView: View {
     // MARK: - Prefill / Save
 
     private func prefill() {
-        guard let c = existingClass else { return }
+        guard let c = existingClass else {
+            weekIndex = defaultWeekIndex
+            return
+        }
         name = c.name
         room = c.room ?? ""
         teacher = c.teacher ?? ""
@@ -391,6 +441,24 @@ struct AddEditClassView: View {
             )
             modelContext.insert(newClass)
         }
+        // Save or update preset
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        if !trimmedName.isEmpty {
+            if let existing = presets.first(where: { $0.name == trimmedName }) {
+                existing.room = room.isEmpty ? nil : room
+                existing.teacher = teacher.isEmpty ? nil : teacher
+                existing.hexColor = selectedColor
+            } else {
+                let preset = ClassPreset(
+                    name: trimmedName,
+                    room: room.isEmpty ? nil : room,
+                    teacher: teacher.isEmpty ? nil : teacher,
+                    hexColor: selectedColor
+                )
+                modelContext.insert(preset)
+            }
+        }
+
         dismiss()
     }
 }
