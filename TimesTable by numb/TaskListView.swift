@@ -1,0 +1,426 @@
+import SwiftUI
+import SwiftData
+
+struct TaskListView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \StudyTask.dueDate) private var tasks: [StudyTask]
+    @State private var showingAddTask = false
+
+    private var pendingTasks: [StudyTask] { tasks.filter { !$0.isCompleted } }
+    private var completedTasks: [StudyTask] { tasks.filter { $0.isCompleted } }
+
+    var body: some View {
+        Group {
+            if tasks.isEmpty {
+                emptyState
+            } else {
+                taskList
+            }
+        }
+        .navigationTitle("Tasks")
+        .toolbar {
+#if os(iOS)
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showingAddTask.toggle() } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+#else
+            ToolbarItem {
+                Button { showingAddTask.toggle() } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+#endif
+        }
+        .sheet(isPresented: $showingAddTask) {
+            AddEditTaskView()
+        }
+    }
+
+    // MARK: - Task List
+
+    private var taskList: some View {
+        List {
+            if !pendingTasks.isEmpty {
+                Section {
+                    ForEach(pendingTasks) { task in
+                        TaskRow(task: task)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    withAnimation(AppTheme.smooth) {
+                                        modelContext.delete(task)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    withAnimation(AppTheme.bouncy) { task.isCompleted.toggle() }
+#if os(iOS)
+                                    Haptic.success()
+#endif
+                                } label: {
+                                    Label("Done", systemImage: "checkmark")
+                                }
+                                .tint(.green)
+                            }
+                            .listRowSeparator(.hidden)
+                    }
+                } header: {
+                    Label("To Do", systemImage: "circle")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                }
+            }
+
+            if !completedTasks.isEmpty {
+                Section {
+                    ForEach(completedTasks) { task in
+                        TaskRow(task: task)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    withAnimation(AppTheme.smooth) {
+                                        modelContext.delete(task)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    withAnimation(AppTheme.bouncy) { task.isCompleted.toggle() }
+                                } label: {
+                                    Label("Undo", systemImage: "arrow.uturn.backward")
+                                }
+                                .tint(.orange)
+                            }
+                            .listRowSeparator(.hidden)
+                    }
+                } header: {
+                    Label("Completed", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+#if os(iOS)
+        .listStyle(.insetGrouped)
+#endif
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "checklist")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(
+                    LinearGradient(colors: [Color(hex: "#FF9F0A") ?? .orange, Color(hex: "#FF453A") ?? .red],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .pulsating()
+
+            GradientText("No Tasks", font: .title2.bold(),
+                         colors: [Color(hex: "#FF9F0A") ?? .orange, Color(hex: "#FF453A") ?? .red])
+
+            Text("Add assignments and homework here.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+// MARK: - Task Row
+
+struct TaskRow: View {
+    @Bindable var task: StudyTask
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(AppTheme.bouncy) {
+                    task.isCompleted.toggle()
+                }
+#if os(iOS)
+                if task.isCompleted { Haptic.success() } else { Haptic.light() }
+#endif
+            } label: {
+                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(task.isCompleted ? .green : task.color)
+                    .font(.title3)
+                    .scaleEffect(task.isCompleted ? 1.15 : 1.0)
+                    .animation(AppTheme.bouncy, value: task.isCompleted)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(task.title)
+                    .font(.headline)
+                    .strikethrough(task.isCompleted)
+                    .foregroundStyle(task.isCompleted ? .secondary : .primary)
+
+                if let detail = task.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.caption2)
+                    Text(task.dueDate, style: .date)
+                    if let cls = task.linkedClass {
+                        Text("·")
+                        Circle()
+                            .fill(cls.color)
+                            .frame(width: 7, height: 7)
+                        Text(cls.name)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            RoundedRectangle(cornerRadius: 2)
+                .fill(task.color.opacity(0.6))
+                .frame(width: 4, height: 32)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(task.color.opacity(task.isCompleted ? 0.02 : 0.05))
+        )
+    }
+}
+
+// MARK: - Add/Edit Task View
+
+struct AddEditTaskView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+
+    var linkedClass: SchoolClass? = nil
+
+    @State private var title = ""
+    @State private var detail = ""
+    @State private var dueDate = Date()
+    @State private var selectedColor = "#FF453A"
+    @State private var customColor: Color = Color(hex: "#FF453A") ?? .red
+
+    private var taskColor: Color { Color(hex: selectedColor) ?? .red }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // MARK: Task Details
+                    taskFormSection(title: "Task Details", icon: "pencil.circle.fill", iconColors: [.blue, .cyan]) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "textformat")
+                                .foregroundStyle(taskColor)
+                                .frame(width: 22)
+                            TextField("Task Title", text: $title)
+                                .textFieldStyle(.plain)
+                                .font(.headline)
+                        }
+                        Divider().padding(.leading, 36)
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "note.text")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22)
+                                .padding(.top, 4)
+                            TextField("Notes (optional)", text: $detail, axis: .vertical)
+                                .lineLimit(3...5)
+                                .textFieldStyle(.plain)
+                        }
+                    }
+
+                    // MARK: Linked Class
+                    if let cls = linkedClass {
+                        taskFormSection(title: "Linked Class", icon: "link.circle.fill", iconColors: [.green, .mint]) {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(cls.color)
+                                    .frame(width: 12, height: 12)
+                                Text(cls.name)
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    }
+
+                    // MARK: Due Date
+                    taskFormSection(title: "Due Date", icon: "calendar.circle.fill", iconColors: [.orange, .yellow]) {
+                        DatePicker("", selection: $dueDate, displayedComponents: .date)
+                            .labelsHidden()
+                            .datePickerStyle(.graphical)
+                    }
+
+                    // MARK: Color
+                    taskFormSection(title: "Color", icon: "paintpalette.fill", iconColors: [.purple, .pink]) {
+                        VStack(spacing: 16) {
+                            let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(AppTheme.palette, id: \.hex) { hex, colorName in
+                                    let color = Color(hex: hex) ?? .gray
+                                    let isSelected = selectedColor == hex
+                                    Button {
+                                        withAnimation(AppTheme.bouncy) {
+                                            selectedColor = hex
+                                            customColor = color
+                                        }
+#if os(iOS)
+                                        Haptic.selection()
+#endif
+                                    } label: {
+                                        ZStack {
+                                            Circle()
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [color, color.opacity(0.65)],
+                                                        startPoint: .topLeading, endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 34, height: 34)
+
+                                            if isSelected {
+                                                Circle()
+                                                    .strokeBorder(.white, lineWidth: 2.5)
+                                                    .frame(width: 28, height: 28)
+                                                Image(systemName: "checkmark")
+                                                    .font(.caption2.bold())
+                                                    .foregroundStyle(.white)
+                                            }
+                                        }
+                                        .shadow(color: isSelected ? color.opacity(0.5) : .clear, radius: 6, y: 2)
+                                        .scaleEffect(isSelected ? 1.1 : 1.0)
+                                        .animation(AppTheme.bouncy, value: isSelected)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(colorName)
+                                }
+                            }
+                            .padding(.vertical, 4)
+
+                            Divider()
+
+                            // Custom color picker
+                            HStack {
+                                ColorPicker(selection: $customColor, supportsOpacity: false) {
+                                    Label("Custom Color", systemImage: "eyedropper")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .onChange(of: customColor) { _, newColor in
+                                    withAnimation(AppTheme.bouncy) {
+                                        selectedColor = newColor.toHex()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            }
+            .background(Color(nsOrUIColor: .secondarySystemBackground))
+            .navigationTitle("New Task")
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(.secondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+#if os(iOS)
+                        Haptic.success()
+#endif
+                    } label: {
+                        Text("Save")
+                            .bold()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(
+                                title.isEmpty
+                                    ? Color.secondary.opacity(0.3)
+                                    : taskColor,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(.white)
+                    }
+                    .disabled(title.isEmpty)
+                }
+            }
+        }
+    }
+
+    // MARK: - Form Section Helper
+
+    private func taskFormSection<Content: View>(
+        title: String,
+        icon: String,
+        iconColors: [Color],
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+            } icon: {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(
+                        LinearGradient(colors: iconColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+            }
+            .padding(.leading, 4)
+
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color(nsOrUIColor: .tertiarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.secondary.opacity(0.08), lineWidth: 0.5)
+            )
+        }
+    }
+
+    private func save() {
+        let task = StudyTask(
+            title: title,
+            detail: detail.isEmpty ? nil : detail,
+            dueDate: dueDate,
+            hexColor: selectedColor,
+            linkedClass: linkedClass
+        )
+        modelContext.insert(task)
+        dismiss()
+    }
+}
