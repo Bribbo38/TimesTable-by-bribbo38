@@ -7,10 +7,13 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var classes: [SchoolClass]
     @Query private var tasks: [StudyTask]
+    @Query(sort: \ClassPreset.name) private var presets: [ClassPreset]
 
     @AppStorage("showWeekends") private var showWeekends = true
     @AppStorage("numberOfWeeks") private var numberOfWeeks = 1
     @AppStorage("repeatingWeeksEnabled") private var repeatingWeeksEnabled = false
+    @AppStorage("averageType") private var averageTypeRaw = AverageType.arithmetic.rawValue
+    @AppStorage("gradeRangeMax") private var gradeRangeMax = 10
     @AppStorage("notificationsEnabled") private var notificationsEnabled = false
     @AppStorage("iCloudEnabled") private var iCloudEnabled = false
 
@@ -22,6 +25,8 @@ struct SettingsView: View {
     @State private var showingImportPicker = false
     @State private var showingImportError = false
     @State private var importErrorMessage = ""
+    @State private var presetToDelete: ClassPreset?
+    @State private var showingDeletePreset = false
 
     var body: some View {
 #if os(macOS)
@@ -65,6 +70,69 @@ struct SettingsView: View {
                                     .monospacedDigit()
                             }
                         }
+                    }
+                }
+
+                // MARK: Subjects
+                if !presets.isEmpty {
+                    settingsGroup(title: String(localized: "Subjects"), icon: "book.fill", iconColors: [.indigo, .purple]) {
+                        ForEach(presets) { preset in
+                            HStack {
+                                Circle()
+                                    .fill(preset.color)
+                                    .frame(width: 10, height: 10)
+                                Text(preset.name)
+                                    .font(.subheadline)
+                                if let teacher = preset.teacher, !teacher.isEmpty {
+                                    Spacer()
+                                    Text(teacher)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(role: .destructive) {
+                                    withAnimation(AppTheme.smooth) {
+                                        modelContext.delete(preset)
+                                    }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.caption)
+                                        .foregroundStyle(.red.opacity(0.7))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if preset.id != presets.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+
+                // MARK: Grades
+                settingsGroup(title: String(localized: "Grades"), icon: "chart.bar.doc.horizontal", iconColors: [.green, .blue]) {
+                    HStack {
+                        Text("Average Type")
+                        Spacer()
+                        Picker("", selection: $averageTypeRaw) {
+                            ForEach(AverageType.allCases) { type in
+                                Text(type.displayName).tag(type.rawValue)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    Divider()
+                    HStack {
+                        Text("Grade Scale")
+                        Spacer()
+                        Picker("", selection: $gradeRangeMax) {
+                            Text("1 – 5").tag(5)
+                            Text("1 – 6").tag(6)
+                            Text("1 – 10").tag(10)
+                            Text("1 – 20").tag(20)
+                            Text("1 – 30").tag(30)
+                            Text("1 – 100").tag(100)
+                        }
+                        .labelsHidden()
                     }
                 }
 
@@ -145,6 +213,18 @@ struct SettingsView: View {
         } message: {
             Text(importErrorMessage)
         }
+        .confirmationDialog("Delete Subject", isPresented: $showingDeletePreset, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let preset = presetToDelete {
+                    modelContext.delete(preset)
+                }
+                presetToDelete = nil
+            }
+        } message: {
+            if let preset = presetToDelete {
+                Text("Delete \"\(preset.name)\"? This will not delete classes or tasks linked to this subject.")
+            }
+        }
     }
 #endif
 
@@ -181,6 +261,56 @@ struct SettingsView: View {
                 }
             } header: {
                 Label("Schedule", systemImage: "calendar")
+            }
+
+            // MARK: Subjects
+            if !presets.isEmpty {
+                Section {
+                    ForEach(presets) { preset in
+                        HStack {
+                            Circle()
+                                .fill(preset.color)
+                                .frame(width: 10, height: 10)
+                            Text(preset.name)
+                            if let teacher = preset.teacher, !teacher.isEmpty {
+                                Spacer()
+                                Text(teacher)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                withAnimation(AppTheme.smooth) {
+                                    modelContext.delete(preset)
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                } header: {
+                    Label("Subjects", systemImage: "book.fill")
+                }
+            }
+
+            // MARK: Grades
+            Section {
+                Picker("Average Type", selection: $averageTypeRaw) {
+                    ForEach(AverageType.allCases) { type in
+                        Text(type.displayName).tag(type.rawValue)
+                    }
+                }
+                Picker("Grade Scale", selection: $gradeRangeMax) {
+                    Text("1 – 5").tag(5)
+                    Text("1 – 6").tag(6)
+                    Text("1 – 10").tag(10)
+                    Text("1 – 20").tag(20)
+                    Text("1 – 30").tag(30)
+                    Text("1 – 100").tag(100)
+                }
+            } header: {
+                Label("Grades", systemImage: "chart.bar.doc.horizontal")
             }
 
             Section {

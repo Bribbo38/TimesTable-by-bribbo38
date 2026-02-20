@@ -2,6 +2,97 @@ import Foundation
 import SwiftData
 import SwiftUI
 
+// MARK: - Average Calculation Types
+
+enum AverageType: String, CaseIterable, Identifiable {
+    case arithmetic       = "arithmetic"
+    case geometric        = "geometric"
+    case harmonic         = "harmonic"
+    case quadratic        = "quadratic"        // RMS
+    case median           = "median"
+    case mode             = "mode"
+    case trimmed          = "trimmed"           // Exclude min & max
+    case midrange         = "midrange"          // (min + max) / 2
+    case cubic            = "cubic"
+    case contraharmonic   = "contraharmonic"    // Σx² / Σx
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .arithmetic:     return String(localized: "Arithmetic Mean")
+        case .geometric:      return String(localized: "Geometric Mean")
+        case .harmonic:       return String(localized: "Harmonic Mean")
+        case .quadratic:      return String(localized: "Quadratic Mean (RMS)")
+        case .median:         return String(localized: "Median")
+        case .mode:           return String(localized: "Mode")
+        case .trimmed:        return String(localized: "Trimmed Mean")
+        case .midrange:       return String(localized: "Midrange")
+        case .cubic:          return String(localized: "Cubic Mean")
+        case .contraharmonic: return String(localized: "Contraharmonic Mean")
+        }
+    }
+
+    func compute(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let n = Double(values.count)
+
+        switch self {
+        case .arithmetic:
+            return values.reduce(0, +) / n
+
+        case .geometric:
+            let product = values.reduce(1.0, *)
+            return pow(product, 1.0 / n)
+
+        case .harmonic:
+            let sumReciprocals = values.reduce(0.0) { $0 + 1.0 / $1 }
+            guard sumReciprocals != 0 else { return 0 }
+            return n / sumReciprocals
+
+        case .quadratic:
+            let sumSquares = values.reduce(0.0) { $0 + $1 * $1 }
+            return sqrt(sumSquares / n)
+
+        case .median:
+            let sorted = values.sorted()
+            let mid = sorted.count / 2
+            if sorted.count % 2 == 0 {
+                return (sorted[mid - 1] + sorted[mid]) / 2.0
+            }
+            return sorted[mid]
+
+        case .mode:
+            var freq: [Double: Int] = [:]
+            let rounded = values.map { (Double(Int($0 * 10))) / 10.0 }
+            for v in rounded { freq[v, default: 0] += 1 }
+            let maxFreq = freq.values.max() ?? 0
+            let modes = freq.filter { $0.value == maxFreq }.map(\.key)
+            return modes.reduce(0, +) / Double(modes.count)
+
+        case .trimmed:
+            guard values.count > 2 else { return values.reduce(0, +) / n }
+            let sorted = values.sorted()
+            let trimmed = Array(sorted.dropFirst().dropLast())
+            return trimmed.reduce(0, +) / Double(trimmed.count)
+
+        case .midrange:
+            guard let min = values.min(), let max = values.max() else { return 0 }
+            return (min + max) / 2.0
+
+        case .cubic:
+            let sumCubes = values.reduce(0.0) { $0 + $1 * $1 * $1 }
+            return cbrt(sumCubes / n)
+
+        case .contraharmonic:
+            let sumSquares = values.reduce(0.0) { $0 + $1 * $1 }
+            let sum = values.reduce(0, +)
+            guard sum != 0 else { return 0 }
+            return sumSquares / sum
+        }
+    }
+}
+
 // MARK: - SchoolClass
 
 @Model
@@ -89,6 +180,8 @@ final class StudyTask {
     var dueDate: Date
     var isCompleted: Bool
     var hexColor: String
+    var grade: Double?          // optional grade when completed
+    var subjectName: String     // linked subject (preset name)
 
     @Relationship(inverse: \SchoolClass.tasks)
     var linkedClass: SchoolClass?
@@ -99,7 +192,9 @@ final class StudyTask {
         dueDate: Date = Date(),
         isCompleted: Bool = false,
         hexColor: String = "#e74c3c",
-        linkedClass: SchoolClass? = nil
+        linkedClass: SchoolClass? = nil,
+        grade: Double? = nil,
+        subjectName: String = ""
     ) {
         self.id = UUID()
         self.title = title
@@ -108,6 +203,8 @@ final class StudyTask {
         self.isCompleted = isCompleted
         self.hexColor = hexColor
         self.linkedClass = linkedClass
+        self.grade = grade
+        self.subjectName = subjectName
     }
 
     var color: Color {

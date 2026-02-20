@@ -6,6 +6,11 @@ struct TaskListView: View {
     @Query(sort: \StudyTask.dueDate) private var tasks: [StudyTask]
     @State private var showingAddTask = false
 
+    // Grade input state
+    @State private var taskToGrade: StudyTask?
+    @State private var gradeInput = ""
+    @State private var showingGradeAlert = false
+
     private var pendingTasks: [StudyTask] { tasks.filter { !$0.isCompleted } }
     private var completedTasks: [StudyTask] { tasks.filter { $0.isCompleted } }
 
@@ -40,6 +45,51 @@ struct TaskListView: View {
         .sheet(isPresented: $showingAddTask) {
             AddEditTaskView()
         }
+        .alert("Add Grade", isPresented: $showingGradeAlert) {
+            TextField("Grade (e.g. 8.5)", text: $gradeInput)
+#if os(iOS)
+                .keyboardType(.decimalPad)
+#endif
+            Button("Save") {
+                if let task = taskToGrade {
+                    if let grade = Double(gradeInput.replacingOccurrences(of: ",", with: ".")) {
+                        task.grade = grade
+                    }
+                    task.isCompleted = true
+                }
+                gradeInput = ""
+                taskToGrade = nil
+            }
+            Button("Skip") {
+                taskToGrade?.isCompleted = true
+                gradeInput = ""
+                taskToGrade = nil
+            }
+            Button("Cancel", role: .cancel) {
+                gradeInput = ""
+                taskToGrade = nil
+            }
+        } message: {
+            Text("Would you like to record a grade for this task?")
+        }
+    }
+
+    // MARK: - Complete with grade prompt
+
+    private func completeTask(_ task: StudyTask) {
+        if task.isCompleted {
+            // Uncompleting — just toggle
+            withAnimation(AppTheme.bouncy) { task.isCompleted = false }
+            task.grade = nil
+        } else {
+            // Show grade input alert
+            taskToGrade = task
+            gradeInput = ""
+            showingGradeAlert = true
+#if os(iOS)
+            Haptic.success()
+#endif
+        }
     }
 
     // MARK: - Task List
@@ -49,7 +99,7 @@ struct TaskListView: View {
             if !pendingTasks.isEmpty {
                 Section {
                     ForEach(pendingTasks) { task in
-                        TaskRow(task: task)
+                        TaskRow(task: task, onToggle: { completeTask(task) })
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     withAnimation(AppTheme.smooth) {
@@ -61,10 +111,7 @@ struct TaskListView: View {
                             }
                             .swipeActions(edge: .leading) {
                                 Button {
-                                    withAnimation(AppTheme.bouncy) { task.isCompleted.toggle() }
-#if os(iOS)
-                                    Haptic.success()
-#endif
+                                    completeTask(task)
                                 } label: {
                                     Label("Done", systemImage: "checkmark")
                                 }
@@ -82,7 +129,7 @@ struct TaskListView: View {
             if !completedTasks.isEmpty {
                 Section {
                     ForEach(completedTasks) { task in
-                        TaskRow(task: task)
+                        TaskRow(task: task, onToggle: { completeTask(task) })
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     withAnimation(AppTheme.smooth) {
@@ -94,7 +141,7 @@ struct TaskListView: View {
                             }
                             .swipeActions(edge: .leading) {
                                 Button {
-                                    withAnimation(AppTheme.bouncy) { task.isCompleted.toggle() }
+                                    completeTask(task)
                                 } label: {
                                     Label("Undo", systemImage: "arrow.uturn.backward")
                                 }
@@ -144,16 +191,13 @@ struct TaskListView: View {
 
 struct TaskRow: View {
     @Bindable var task: StudyTask
+    @AppStorage("gradeRangeMax") private var gradeRangeMax = 10
+    var onToggle: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                withAnimation(AppTheme.bouncy) {
-                    task.isCompleted.toggle()
-                }
-#if os(iOS)
-                if task.isCompleted { Haptic.success() } else { Haptic.light() }
-#endif
+                onToggle()
             } label: {
                 Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(task.isCompleted ? .green : task.color)
@@ -180,12 +224,11 @@ struct TaskRow: View {
                     Image(systemName: "calendar")
                         .font(.caption2)
                     Text(task.dueDate, style: .date)
-                    if let cls = task.linkedClass {
+                    if !task.subjectName.isEmpty {
                         Text("·")
-                        Circle()
-                            .fill(cls.color)
-                            .frame(width: 7, height: 7)
-                        Text(cls.name)
+                        Image(systemName: "book.fill")
+                            .font(.caption2)
+                        Text(task.subjectName)
                     }
                 }
                 .font(.caption2)
@@ -194,9 +237,16 @@ struct TaskRow: View {
 
             Spacer()
 
-            RoundedRectangle(cornerRadius: 2)
-                .fill(task.color.opacity(0.6))
-                .frame(width: 4, height: 32)
+            VStack(alignment: .trailing, spacing: 2) {
+                if let grade = task.grade {
+                    Text(String(format: "%.1f", grade))
+                        .font(.subheadline.bold().monospacedDigit())
+                        .foregroundStyle(gradeColor(grade))
+                }
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(task.color.opacity(0.6))
+                    .frame(width: 4, height: 32)
+            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 4)
@@ -204,6 +254,14 @@ struct TaskRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(task.color.opacity(task.isCompleted ? 0.02 : 0.05))
         )
+    }
+
+    private func gradeColor(_ grade: Double) -> Color {
+        let good = Double(gradeRangeMax) * 0.7
+        let pass = Double(gradeRangeMax) * 0.6
+        if grade >= good { return .green }
+        if grade >= pass { return .orange }
+        return .red
     }
 }
 
@@ -213,6 +271,8 @@ struct AddEditTaskView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
+    @Query(sort: \ClassPreset.name) private var presets: [ClassPreset]
+
     var linkedClass: SchoolClass? = nil
 
     @State private var title = ""
@@ -220,15 +280,66 @@ struct AddEditTaskView: View {
     @State private var dueDate = Date()
     @State private var selectedColor = "#FF453A"
     @State private var customColor: Color = Color(hex: "#FF453A") ?? .red
+    @State private var selectedSubject: String = ""
 
     private var taskColor: Color { Color(hex: selectedColor) ?? .red }
+    private var canSave: Bool { !title.isEmpty && !selectedSubject.isEmpty }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    // MARK: Subject Picker (mandatory)
+                    taskFormSection(title: String(localized: "Subject"), icon: "book.circle.fill", iconColors: [.indigo, .purple]) {
+                        if presets.isEmpty {
+                            Text("Create a class first to add subjects.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(presets) { preset in
+                                        Button {
+                                            withAnimation(AppTheme.smooth) {
+                                                selectedSubject = preset.name
+                                                selectedColor = preset.hexColor
+                                                customColor = preset.color
+                                            }
+#if os(iOS)
+                                            Haptic.selection()
+#endif
+                                        } label: {
+                                            HStack(spacing: 6) {
+                                                Circle()
+                                                    .fill(preset.color)
+                                                    .frame(width: 8, height: 8)
+                                                Text(preset.name)
+                                                    .font(.subheadline.bold())
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                selectedSubject == preset.name
+                                                    ? AnyShapeStyle(preset.color.opacity(0.15))
+                                                    : AnyShapeStyle(Color.secondary.opacity(0.08))
+                                            )
+                                            .foregroundStyle(selectedSubject == preset.name ? preset.color : .primary)
+                                            .clipShape(Capsule())
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(selectedSubject == preset.name ? preset.color.opacity(0.3) : .clear, lineWidth: 1)
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // MARK: Task Details
-                    taskFormSection(title: "Task Details", icon: "pencil.circle.fill", iconColors: [.blue, .cyan]) {
+                    taskFormSection(title: String(localized: "Task Details"), icon: "pencil.circle.fill", iconColors: [.blue, .cyan]) {
                         HStack(spacing: 10) {
                             Image(systemName: "textformat")
                                 .foregroundStyle(taskColor)
@@ -249,9 +360,9 @@ struct AddEditTaskView: View {
                         }
                     }
 
-                    // MARK: Linked Class
+                    // MARK: Linked Class (when opened from ClassDetailView)
                     if let cls = linkedClass {
-                        taskFormSection(title: "Linked Class", icon: "link.circle.fill", iconColors: [.green, .mint]) {
+                        taskFormSection(title: String(localized: "Linked Class"), icon: "link.circle.fill", iconColors: [.green, .mint]) {
                             HStack(spacing: 10) {
                                 Circle()
                                     .fill(cls.color)
@@ -266,14 +377,14 @@ struct AddEditTaskView: View {
                     }
 
                     // MARK: Due Date
-                    taskFormSection(title: "Due Date", icon: "calendar.circle.fill", iconColors: [.orange, .yellow]) {
+                    taskFormSection(title: String(localized: "Due Date"), icon: "calendar.circle.fill", iconColors: [.orange, .yellow]) {
                         DatePicker("", selection: $dueDate, displayedComponents: .date)
                             .labelsHidden()
                             .datePickerStyle(.graphical)
                     }
 
                     // MARK: Color
-                    taskFormSection(title: "Color", icon: "paintpalette.fill", iconColors: [.purple, .pink]) {
+                    taskFormSection(title: String(localized: "Color"), icon: "paintpalette.fill", iconColors: [.purple, .pink]) {
                         VStack(spacing: 16) {
                             let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 6)
                             LazyVGrid(columns: columns, spacing: 12) {
@@ -361,14 +472,22 @@ struct AddEditTaskView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 5)
                             .background(
-                                title.isEmpty
-                                    ? Color.secondary.opacity(0.3)
-                                    : taskColor,
+                                canSave
+                                    ? taskColor
+                                    : Color.secondary.opacity(0.3),
                                 in: Capsule()
                             )
                             .foregroundStyle(.white)
                     }
-                    .disabled(title.isEmpty)
+                    .disabled(!canSave)
+                }
+            }
+            .onAppear {
+                // If opened from a class detail, pre-select subject
+                if let cls = linkedClass {
+                    selectedSubject = cls.name
+                    selectedColor = cls.hexColor
+                    customColor = cls.color
                 }
             }
         }
@@ -418,7 +537,8 @@ struct AddEditTaskView: View {
             detail: detail.isEmpty ? nil : detail,
             dueDate: dueDate,
             hexColor: selectedColor,
-            linkedClass: linkedClass
+            linkedClass: linkedClass,
+            subjectName: selectedSubject
         )
         modelContext.insert(task)
         dismiss()

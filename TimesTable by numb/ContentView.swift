@@ -5,6 +5,7 @@ import SwiftData
 
 enum AppDestination: Hashable {
     case tasks
+    case grades
     case settings
 }
 
@@ -44,6 +45,11 @@ struct ContentView: View {
                                 Label("Tasks", systemImage: "checklist")
                             }
                             Button {
+                                navigationPath.append(AppDestination.grades)
+                            } label: {
+                                Label("Grades", systemImage: "chart.bar.doc.horizontal")
+                            }
+                            Button {
                                 navigationPath.append(AppDestination.settings)
                             } label: {
                                 Label("Settings", systemImage: "gearshape.fill")
@@ -62,6 +68,8 @@ struct ContentView: View {
                     switch destination {
                     case .tasks:
                         TaskListView()
+                    case .grades:
+                        GradesView()
                     case .settings:
                         SettingsView()
                     }
@@ -95,6 +103,16 @@ struct SidebarView: View {
                     Image(systemName: "checklist")
                         .foregroundStyle(
                             LinearGradient(colors: [.orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                }
+            }
+            NavigationLink {
+                GradesView()
+            } label: {
+                Label { Text("Grades") } icon: {
+                    Image(systemName: "chart.bar.doc.horizontal")
+                        .foregroundStyle(
+                            LinearGradient(colors: [.green, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
                 }
             }
