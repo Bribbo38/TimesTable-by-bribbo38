@@ -1,12 +1,10 @@
 # TimesTable+
 
-![TimesTable+ App Icon](TimeTable+.png)
-
 **Your school schedule, tasks, and grades — all in one place.**
 
 ## About
 
-TimesTable+ is a native iOS and macOS app for students who want to keep their school life organized. It combines a color-coded weekly timetable with a homework tracker and a grade book, so everything from your next class to your current average is always a tap away. Built with SwiftUI and SwiftData, it runs natively on iPhone, iPad, and Mac.
+TimesTable+ for Android is a school timetable app for students who want to keep their school life organized. It combines a color-coded weekly timetable with a homework tracker and a grade book, so everything from your next class to your current average is always close at hand.
 
 ## Screenshots
 
@@ -18,7 +16,7 @@ TimesTable+ is a native iOS and macOS app for students who want to keep their sc
 - Day-by-day timetable view with automatic highlight for today
 - Multi-week rotating schedules (1, 2, 3, or 4-week cycles)
 - Show or hide weekends
-- Landscape week-grid view on iOS for a full-week overview
+- Week-grid overview
 
 ### 🎨 Classes
 - Color-coded class entries with room, teacher, and notes
@@ -36,38 +34,24 @@ TimesTable+ is a native iOS and macOS app for students who want to keep their sc
 - Configurable grade scale: 1–5, 1–6, 1–10, 1–20, 1–30, or 1–100
 
 ### 🔔 Notifications
-- 15-minute class reminders on iOS (scheduled as recurring weekly notifications)
+- 15-minute class reminders
 
 ### 🪟 Widget
 - Home screen widget showing your next class or today's full schedule
 - Supports small and medium widget sizes
 
-### 🗣 Siri & Shortcuts
-- *"What's my next class?"* — `NextClassIntent`
-- *"What's my schedule today?"* — `TodayScheduleIntent`
-
 ### 💾 Backup
 - Export and import your full timetable and tasks as a JSON file
 - Useful for backups, device transfers, or sharing schedules
 
-### 🖥 Platform
-- Runs natively on iOS and macOS (Mac Catalyst)
-- Fully dark and light mode aware
-
 ## 🚧 Planned / In Progress
 
-- **iCloud Sync** — CloudKit integration is stubbed in settings but not yet implemented
-- **Android Port** — this fork is being adapted for Android
+- iCloud / cloud sync
 
 ## 🛠 Installation
 
-1. Clone the repository
-2. Open `TimesTable by numb.xcodeproj` in Xcode 15 or later
-3. Select your target device or simulator
-4. Build and run (`⌘R`)
+*Build instructions coming soon.*
 
-> **Note:** The widget extension (`TimetableWidget.swift`) must be manually added to a separate Widget Extension target in Xcode before it will appear on the home screen. See the comment at the top of that file for instructions.
+## 🍎 Original iOS/macOS Version
 
-## Credits
-
-Original app by [bribbo38](https://github.com/bribbo38). This fork is maintained independently for the purpose of an Android port and is not affiliated with the original author.
+This app is an Android adaptation of **TimesTable+** originally built for iOS and macOS by [numbfede](https://github.com/numbfede/TimesTable--by-numbfede). The original version is built with SwiftUI and SwiftData and supports features like Siri Shortcuts, a home screen widget, and Mac Catalyst. If you're on Apple platforms, check out the original — it's what this port is based on.
