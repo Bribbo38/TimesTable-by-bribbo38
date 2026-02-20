@@ -38,7 +38,7 @@ class SettingsViewModel @Inject constructor(
     fun setRepeatingWeeks(value: Boolean) = viewModelScope.launch { settingsDataStore.setRepeatingWeeksEnabled(value) }
     fun setNumberOfWeeks(value: Int) = viewModelScope.launch { settingsDataStore.setNumberOfWeeks(value) }
     fun setAverageType(value: String) = viewModelScope.launch { settingsDataStore.setAverageType(value) }
-    fun setGradeRangeMax(value: Int) = viewModelScope.launch { settingsDataStore.setGradeRangeMax(value) }
+    fun setGradeScale(value: String) = viewModelScope.launch { settingsDataStore.setGradeScale(value) }
     fun setNotificationsEnabled(value: Boolean) = viewModelScope.launch { settingsDataStore.setNotificationsEnabled(value) }
 
     fun addPreset(name: String, room: String?, teacher: String?, hexColor: String) {

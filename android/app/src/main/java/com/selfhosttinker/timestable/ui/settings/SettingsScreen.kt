@@ -24,10 +24,9 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.selfhosttinker.timestable.domain.AverageType
+import com.selfhosttinker.timestable.domain.GradeScale
 import com.selfhosttinker.timestable.domain.model.ClassPreset
 import com.selfhosttinker.timestable.ui.theme.CoralRed
-
-private val GRADE_MAX_OPTIONS = listOf(5, 6, 10, 20, 30, 100)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -168,7 +167,7 @@ fun SettingsScreen(
                         readOnly = true,
                         label = { Text("Average Type") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = avgExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = avgExpanded,
@@ -188,30 +187,31 @@ fun SettingsScreen(
 
                 HorizontalDivider()
 
-                // Grade range max picker
+                // Grade system picker
                 var rangeExpanded by remember { mutableStateOf(false) }
+                val currentGradeScale = remember(settings.gradeScale) { GradeScale.fromId(settings.gradeScale) }
                 ExposedDropdownMenuBox(
                     expanded = rangeExpanded,
                     onExpandedChange = { rangeExpanded = !rangeExpanded },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     OutlinedTextField(
-                        value = settings.gradeRangeMax.toString(),
+                        value = currentGradeScale.displayName,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Grade Range Max") },
+                        label = { Text("Grade System") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = rangeExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = rangeExpanded,
                         onDismissRequest = { rangeExpanded = false }
                     ) {
-                        GRADE_MAX_OPTIONS.forEach { max ->
+                        GradeScale.all.forEach { scale ->
                             DropdownMenuItem(
-                                text = { Text(max.toString()) },
+                                text = { Text(scale.displayName) },
                                 onClick = {
-                                    viewModel.setGradeRangeMax(max)
+                                    viewModel.setGradeScale(scale.id)
                                     rangeExpanded = false
                                 }
                             )

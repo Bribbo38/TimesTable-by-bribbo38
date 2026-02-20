@@ -6,13 +6,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.selfhosttinker.timestable.domain.GradeScale
 import com.selfhosttinker.timestable.domain.model.StudyTask
 import com.selfhosttinker.timestable.ui.components.GradientText
 import com.selfhosttinker.timestable.ui.components.pulsating
@@ -34,22 +35,27 @@ import java.util.*
 fun TaskListScreen(
     viewModel: TaskListViewModel = hiltViewModel()
 ) {
-    val allTasks by viewModel.allTasks.collectAsStateWithLifecycle()
-    val pending   = allTasks.filter { !it.isCompleted }
-    val completed = allTasks.filter { it.isCompleted }
+    val allTasks  by viewModel.allTasks.collectAsStateWithLifecycle()
+    val settings  by viewModel.settings.collectAsStateWithLifecycle()
+    val gradeScale = remember(settings.gradeScale) { GradeScale.fromId(settings.gradeScale) }
 
+    val pending   = allTasks.filter { !it.isCompleted }
+    val completed = allTasks.filter {  it.isCompleted }
+
+    // Task waiting for grade entry
     var taskForGrade by remember { mutableStateOf<StudyTask?>(null) }
     val haptic = LocalHapticFeedback.current
 
     taskForGrade?.let { task ->
         GradeEntryDialog(
-            onDismiss = { taskForGrade = null },
-            onSkip = {
+            gradeScale = gradeScale,
+            onDismiss  = { taskForGrade = null },
+            onSkip     = {
                 viewModel.completeTask(task, null)
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 taskForGrade = null
             },
-            onConfirm = { grade ->
+            onConfirm  = { grade ->
                 viewModel.completeTask(task, grade)
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 taskForGrade = null
@@ -85,17 +91,18 @@ fun TaskListScreen(
                     )
                 }
                 items(pending, key = { it.id }) { task ->
-                    TaskRow(
-                        task = task,
-                        onComplete = { taskForGrade = task },
-                        onDelete = { viewModel.deleteTask(task) }
+                    SwipeableTaskRow(
+                        task        = task,
+                        gradeScale  = gradeScale,
+                        onComplete  = { taskForGrade = task },
+                        onDelete    = { viewModel.deleteTask(task) }
                     )
                 }
             }
 
             if (completed.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         "Completed",
                         style = MaterialTheme.typography.labelLarge,
@@ -104,10 +111,11 @@ fun TaskListScreen(
                     )
                 }
                 items(completed, key = { it.id }) { task ->
-                    TaskRow(
-                        task = task,
-                        onUndo = { viewModel.uncompleteTask(task) },
-                        onDelete = { viewModel.deleteTask(task) }
+                    SwipeableTaskRow(
+                        task        = task,
+                        gradeScale  = gradeScale,
+                        onUndo      = { viewModel.uncompleteTask(task) },
+                        onDelete    = { viewModel.deleteTask(task) }
                     )
                 }
             }
@@ -115,10 +123,13 @@ fun TaskListScreen(
     }
 }
 
+// ── Swipeable wrapper (left = delete, right = complete/undo) ─────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TaskRow(
+private fun SwipeableTaskRow(
     task: StudyTask,
+    gradeScale: GradeScale,
     onComplete: (() -> Unit)? = null,
     onUndo: (() -> Unit)? = null,
     onDelete: () -> Unit
@@ -128,12 +139,9 @@ private fun TaskRow(
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     if (task.isCompleted) onUndo?.invoke() else onComplete?.invoke()
-                    false // don't auto-dismiss, let dialog handle it
+                    false  // snap back, let the dialog/action handle state
                 }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete()
-                    true
-                }
+                SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
                 else -> false
             }
         }
@@ -142,26 +150,24 @@ private fun TaskRow(
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val direction = dismissState.dismissDirection
+            val dir = dismissState.dismissDirection
+            val bg  = when (dir) {
+                SwipeToDismissBoxValue.StartToEnd -> Emerald
+                SwipeToDismissBoxValue.EndToStart -> CoralRed
+                else -> Color.Transparent
+            }
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        when (direction) {
-                            SwipeToDismissBoxValue.StartToEnd -> Emerald
-                            SwipeToDismissBoxValue.EndToStart -> CoralRed
-                            else -> Color.Transparent
-                        }
-                    )
-                    .padding(horizontal = 16.dp),
+                    .background(bg, RoundedCornerShape(CardRadius))
+                    .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (direction == SwipeToDismissBoxValue.StartToEnd)
+                horizontalArrangement = if (dir == SwipeToDismissBoxValue.StartToEnd)
                     Arrangement.Start else Arrangement.End
             ) {
                 Text(
-                    text = when (direction) {
-                        SwipeToDismissBoxValue.StartToEnd ->
-                            if (task.isCompleted) "Undo" else "Done"
+                    text = when (dir) {
+                        SwipeToDismissBoxValue.StartToEnd -> if (task.isCompleted) "Undo" else "Done"
                         SwipeToDismissBoxValue.EndToStart -> "Delete"
                         else -> ""
                     },
@@ -171,36 +177,53 @@ private fun TaskRow(
             }
         }
     ) {
-        TaskCard(task = task)
+        TaskCard(task = task, gradeScale = gradeScale, onComplete = onComplete, onUndo = onUndo)
     }
 }
 
+// ── Task card with visible checkbox ─────────────────────────────────────────
+
 @Composable
-private fun TaskCard(task: StudyTask) {
-    val taskColor = task.hexColor.toComposeColor()
+private fun TaskCard(
+    task: StudyTask,
+    gradeScale: GradeScale,
+    onComplete: (() -> Unit)? = null,
+    onUndo: (() -> Unit)? = null
+) {
+    val taskColor  = task.hexColor.toComposeColor()
     val dateFormat = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(CardRadius),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Color bar
+            // Checkbox — primary interaction for completing a task
+            Checkbox(
+                checked  = task.isCompleted,
+                onCheckedChange = {
+                    if (task.isCompleted) onUndo?.invoke() else onComplete?.invoke()
+                }
+            )
+
+            Spacer(Modifier.width(6.dp))
+
+            // Colored strip
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(32.dp)
-                    .background(taskColor, shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                    .height(36.dp)
+                    .background(taskColor, RoundedCornerShape(2.dp))
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(Modifier.width(10.dp))
 
+            // Content
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
@@ -217,14 +240,14 @@ private fun TaskCard(task: StudyTask) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = dateFormat.format(Date(task.dueDateMs)),
+                        text  = dateFormat.format(Date(task.dueDateMs)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                     if (task.subjectName.isNotEmpty()) {
                         Text(
-                            text = task.subjectName,
+                            text  = task.subjectName,
                             style = MaterialTheme.typography.bodySmall,
                             color = taskColor,
                             fontSize = 11.sp
@@ -235,18 +258,16 @@ private fun TaskCard(task: StudyTask) {
 
             // Grade chip
             task.grade?.let { grade ->
+                val perf  = gradeScale.performance(grade)
+                val color = gradeColor(perf)
                 Box(
                     modifier = Modifier
-                        .background(
-                            gradeColor(grade, 10).copy(alpha = 0.15f),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(PillRadius)
-                        )
+                        .background(color.copy(alpha = 0.15f), RoundedCornerShape(PillRadius))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = if (grade == grade.toLong().toDouble())
-                            grade.toLong().toString() else "%.1f".format(grade),
-                        color = gradeColor(grade, 10),
+                        text = gradeScale.displayValue(grade),
+                        color = color,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -256,46 +277,78 @@ private fun TaskCard(task: StudyTask) {
     }
 }
 
+// ── Grade entry dialog — adapts to letter vs numeric scales ──────────────────
+
 @Composable
 private fun GradeEntryDialog(
+    gradeScale: GradeScale,
     onDismiss: () -> Unit,
-    onSkip: () -> Unit,
+    onSkip:    () -> Unit,
     onConfirm: (Double?) -> Unit
 ) {
-    var gradeText by remember { mutableStateOf("") }
+    var gradeText      by remember { mutableStateOf("") }
+    var selectedLetter by remember { mutableStateOf<Pair<String, Double>?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Complete Task") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Add a grade (optional)")
-                OutlinedTextField(
-                    value = gradeText,
-                    onValueChange = { gradeText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Grade") },
-                    placeholder = { Text("e.g. 8.5") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+
+                if (gradeScale.isLetter) {
+                    // Button grid for letter grades
+                    val options = gradeScale.letterOptions ?: emptyList()
+                    val cols = 5
+                    for (rowStart in options.indices step cols) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (i in rowStart until minOf(rowStart + cols, options.size)) {
+                                val (label, value) = options[i]
+                                val isSelected = selectedLetter?.second == value
+                                OutlinedButton(
+                                    onClick = { selectedLetter = options[i] },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (isSelected)
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        else Color.Transparent
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(label, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Numeric text input
+                    OutlinedTextField(
+                        value = gradeText,
+                        onValueChange = { gradeText = it.filter { c -> c.isDigit() || c == '.' } },
+                        label = { Text("Grade (${gradeScale.min.toInt()}–${gradeScale.max.toInt()})") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    val grade = gradeText.toDoubleOrNull()
-                    onConfirm(grade)
-                }
-            ) { Text("Save") }
+            TextButton(onClick = {
+                val grade = if (gradeScale.isLetter) selectedLetter?.second
+                            else gradeText.toDoubleOrNull()
+                onConfirm(grade)
+            }) { Text("Save") }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onSkip) { Text("Skip") }
+                TextButton(onClick = onSkip)    { Text("Skip") }
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
         }
     )
 }
+
+// ── Empty state ──────────────────────────────────────────────────────────────
 
 @Composable
 private fun EmptyTasksState(modifier: Modifier = Modifier) {
@@ -307,18 +360,16 @@ private fun EmptyTasksState(modifier: Modifier = Modifier) {
         Icon(
             imageVector = Icons.Outlined.Checklist,
             contentDescription = null,
-            modifier = Modifier
-                .size(64.dp)
-                .pulsating(),
+            modifier = Modifier.size(64.dp).pulsating(),
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
         GradientText(
             text = "No Tasks",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
             text = "Add tasks from a class detail view",
             style = MaterialTheme.typography.bodyMedium,

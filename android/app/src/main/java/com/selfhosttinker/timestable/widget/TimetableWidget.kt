@@ -2,6 +2,7 @@ package com.selfhosttinker.timestable.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
@@ -19,6 +20,7 @@ import androidx.glance.layout.*
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import com.selfhosttinker.timestable.MainActivity
 import com.selfhosttinker.timestable.data.db.AppDatabase
 import com.selfhosttinker.timestable.domain.model.SchoolClass
@@ -93,6 +95,8 @@ class TimetableWidget : GlanceAppWidget() {
                         hexColor = entity.hexColor
                     )
                 }
+        } catch (e: Exception) {
+            emptyList()
         } finally {
             db.close()
         }
@@ -104,11 +108,20 @@ private fun SmallWidgetContent(schoolClass: SchoolClass) {
     Column(modifier = GlanceModifier.fillMaxSize()) {
         Text(
             text = schoolClass.name,
-            style = TextStyle(fontWeight = FontWeight.Bold)
+            style = TextStyle(
+                color = GlanceTheme.colors.onSurface,
+                fontWeight = FontWeight.Bold
+            )
         )
-        Text(text = formatTime(schoolClass.startTimeMs))
+        Text(
+            text = formatTime(schoolClass.startTimeMs),
+            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
+        )
         schoolClass.room?.let { room ->
-            Text(text = room)
+            Text(
+                text = room,
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
+            )
         }
     }
 }
@@ -120,23 +133,44 @@ private fun MediumWidgetContent(classes: List<SchoolClass>) {
 
     Column(modifier = GlanceModifier.fillMaxSize()) {
         visible.forEach { schoolClass ->
+            val classColor = try {
+                ColorProvider(Color(android.graphics.Color.parseColor(schoolClass.hexColor)))
+            } catch (e: Exception) {
+                GlanceTheme.colors.primary
+            }
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(
+                    modifier = GlanceModifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(classColor)
+                ) { }
+                Spacer(GlanceModifier.width(6.dp))
                 Text(
                     text = formatTime(schoolClass.startTimeMs),
-                    style = TextStyle(fontWeight = FontWeight.Medium),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    ),
                     modifier = GlanceModifier.width(50.dp)
                 )
                 Text(
                     text = schoolClass.name,
-                    style = TextStyle(fontWeight = FontWeight.Normal)
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontWeight = FontWeight.Normal
+                    )
                 )
             }
         }
         if (more > 0) {
-            Text(text = "+$more more")
+            Text(
+                text = "+$more more",
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
+            )
         }
     }
 }

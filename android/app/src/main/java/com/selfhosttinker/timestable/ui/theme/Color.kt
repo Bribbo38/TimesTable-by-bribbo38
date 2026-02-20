@@ -30,17 +30,18 @@ val LightBgStart = Color(0xFFF2F2F7)
 val LightBgEnd   = Color(0xFFE5E5EA)
 
 // ── Gradient brushes ─────────────────────────────────────────────────────────
-val BlueIndigoBrush = Brush.linearGradient(listOf(ElectricBlue, Indigo))
+val BlueIndigoBrush   = Brush.linearGradient(listOf(ElectricBlue, Indigo))
 val GreenEmeraldBrush = Brush.linearGradient(listOf(Emerald, Lime))
 
 // ── Grade color helper ────────────────────────────────────────────────────────
-fun gradeColor(grade: Double, max: Int): Color {
-    val pct = (grade / max).coerceIn(0.0, 1.0)
-    return when {
-        pct >= 0.75 -> Emerald
-        pct >= 0.45 -> Tangerine
-        else        -> CoralRed
-    }
+/**
+ * Returns green / orange / red based on normalised performance (0.0–1.0).
+ * Call with [GradeScale.performance(value)] at the call site.
+ */
+fun gradeColor(performance: Double): Color = when {
+    performance >= 0.75 -> Emerald
+    performance >= 0.45 -> Tangerine
+    else                -> CoralRed
 }
 
 // ── Hex string → Color ───────────────────────────────────────────────────────

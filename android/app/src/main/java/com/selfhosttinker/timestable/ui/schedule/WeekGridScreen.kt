@@ -20,7 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.selfhosttinker.timestable.data.datastore.AppSettings
+import com.selfhosttinker.timestable.data.datastore.SettingsDataStore
 import com.selfhosttinker.timestable.data.repository.ClassRepository
 import com.selfhosttinker.timestable.domain.model.SchoolClass
 import com.selfhosttinker.timestable.ui.components.formatTime
@@ -28,27 +32,29 @@ import com.selfhosttinker.timestable.ui.theme.CoralRed
 import com.selfhosttinker.timestable.ui.theme.ElectricBlue
 import com.selfhosttinker.timestable.ui.theme.toComposeColor
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
+import javax.inject.Inject
 
-private val DAY_NAMES = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-private const val HOUR_START = 7   // 07:00
-private const val HOUR_END   = 22  // 22:00
+private val DAY_NAMES    = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+private const val HOUR_START = 7
+private const val HOUR_END   = 22
 private val HOUR_HEIGHT      = 60.dp
 private val TIME_COL_WIDTH   = 48.dp
 private val DAY_COL_WIDTH    = 130.dp
 
 @HiltViewModel
 class WeekGridViewModel @Inject constructor(
-    private val classRepository: ClassRepository
+    private val classRepository: ClassRepository,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
     val allClasses: StateFlow<List<SchoolClass>> = classRepository.getAllClasses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val settings: StateFlow<AppSettings> = settingsDataStore.settingsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 }
 
 @Composable
@@ -57,51 +63,38 @@ fun WeekGridScreen(
     viewModel: WeekGridViewModel = hiltViewModel()
 ) {
     val allClasses by viewModel.allClasses.collectAsStateWithLifecycle()
+    val settings   by viewModel.settings.collectAsStateWithLifecycle()
     val todayDay = remember { ScheduleViewModel.todayAppDay() }
 
-    val verticalScroll = rememberScrollState(initial = 7 * 60) // start scrolled to 7am
+    val dayCount = if (settings.showWeekends) 7 else 5
+
+    val verticalScroll   = rememberScrollState(initial = 7 * 60)
     val horizontalScroll = rememberScrollState()
     val density = LocalDensity.current
     val hourHeightPx = with(density) { HOUR_HEIGHT.toPx() }
-    val dayColWidthPx = with(density) { DAY_COL_WIDTH.toPx() }
-    val timeColWidthPx = with(density) { TIME_COL_WIDTH.toPx() }
 
-    // Current time indicator position
     val currentTimeOffset = remember {
         val now = Calendar.getInstance()
-        val hour = now.get(Calendar.HOUR_OF_DAY)
-        val min = now.get(Calendar.MINUTE)
-        val totalMinutes = hour * 60 + min - HOUR_START * 60
+        val totalMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE) - HOUR_START * 60
         totalMinutes.coerceAtLeast(0) * hourHeightPx / 60f
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header row: day names
+        // Linked header (scrolls with body)
         Row(modifier = Modifier.horizontalScroll(horizontalScroll)) {
             Spacer(modifier = Modifier.width(TIME_COL_WIDTH))
-            for (day in 1..5) {
+            for (day in 1..dayCount) {
                 Box(
-                    modifier = Modifier
-                        .width(DAY_COL_WIDTH)
-                        .padding(vertical = 8.dp),
+                    modifier = Modifier.width(DAY_COL_WIDTH).padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = DAY_NAMES[day - 1],
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
+                        Text(DAY_NAMES[day - 1], fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         if (day == todayDay) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(ElectricBlue)
-                            )
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(ElectricBlue))
                         }
                     }
                 }
@@ -110,21 +103,13 @@ fun WeekGridScreen(
 
         HorizontalDivider()
 
-        // Grid body
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(verticalScroll)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().verticalScroll(verticalScroll)) {
             Row(modifier = Modifier.horizontalScroll(horizontalScroll)) {
                 // Time column
                 Column(modifier = Modifier.width(TIME_COL_WIDTH)) {
                     for (hour in HOUR_START until HOUR_END) {
                         Box(
-                            modifier = Modifier
-                                .height(HOUR_HEIGHT)
-                                .fillMaxWidth()
-                                .padding(end = 4.dp),
+                            modifier = Modifier.height(HOUR_HEIGHT).fillMaxWidth().padding(end = 4.dp),
                             contentAlignment = Alignment.TopEnd
                         ) {
                             Text(
@@ -136,32 +121,29 @@ fun WeekGridScreen(
                     }
                 }
 
-                // Day columns
-                for (day in 1..5) {
+                // Day columns — respects showWeekends
+                for (day in 1..dayCount) {
                     val dayClasses = allClasses.filter { it.dayOfWeek == day }
                     Box(
                         modifier = Modifier
                             .width(DAY_COL_WIDTH)
                             .height(HOUR_HEIGHT * (HOUR_END - HOUR_START))
                     ) {
-                        // Hour lines
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            for (hour in 0..(HOUR_END - HOUR_START)) {
-                                val y = hour * hourHeightPx
+                            for (h in 0..(HOUR_END - HOUR_START)) {
                                 drawLine(
                                     color = Color.Gray.copy(alpha = 0.2f),
-                                    start = Offset(0f, y),
-                                    end = Offset(size.width, y),
+                                    start = Offset(0f, h * hourHeightPx),
+                                    end   = Offset(size.width, h * hourHeightPx),
                                     strokeWidth = 0.5.dp.toPx()
                                 )
                             }
                         }
 
-                        // Class blocks
                         dayClasses.forEach { schoolClass ->
-                            val startMin = schoolClass.startTimeMs.toInt() / 60_000 - HOUR_START * 60
-                            val endMin = schoolClass.endTimeMs.toInt() / 60_000 - HOUR_START * 60
-                            val topDp = (startMin * HOUR_HEIGHT.value / 60f).dp
+                            val startMin = (schoolClass.startTimeMs / 60_000).toInt() - HOUR_START * 60
+                            val endMin   = (schoolClass.endTimeMs   / 60_000).toInt() - HOUR_START * 60
+                            val topDp    = (startMin * HOUR_HEIGHT.value / 60f).dp
                             val heightDp = ((endMin - startMin) * HOUR_HEIGHT.value / 60f).dp.coerceAtLeast(30.dp)
                             val classColor = schoolClass.hexColor.toComposeColor()
 
@@ -193,13 +175,12 @@ fun WeekGridScreen(
                             }
                         }
 
-                        // Current time indicator (today only)
                         if (day == todayDay) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
                                 drawLine(
                                     color = CoralRed,
                                     start = Offset(0f, currentTimeOffset),
-                                    end = Offset(size.width, currentTimeOffset),
+                                    end   = Offset(size.width, currentTimeOffset),
                                     strokeWidth = 2.dp.toPx()
                                 )
                                 drawCircle(

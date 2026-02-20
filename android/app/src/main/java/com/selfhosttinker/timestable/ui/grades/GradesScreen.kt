@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.selfhosttinker.timestable.domain.AverageType
+import com.selfhosttinker.timestable.domain.GradeScale
 import com.selfhosttinker.timestable.ui.components.GlassCard
 import com.selfhosttinker.timestable.ui.components.GradientText
 import com.selfhosttinker.timestable.ui.components.pulsating
@@ -39,7 +40,7 @@ fun GradesScreen(
     }
 
     val avgType = AverageType.fromRawValue(settings.averageType)
-    val gradeMax = settings.gradeRangeMax
+    val gradeScale = remember(settings.gradeScale) { GradeScale.fromId(settings.gradeScale) }
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -67,11 +68,9 @@ fun GradesScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    val overallColor = gradeColor(overallAverage, gradeMax)
+                    val overallColor = gradeColor(gradeScale.performance(overallAverage))
                     Text(
-                        text = if (overallAverage == overallAverage.toLong().toDouble())
-                            overallAverage.toLong().toString()
-                        else "%.2f".format(overallAverage),
+                        text = gradeScale.displayValue(overallAverage),
                         fontSize = 44.sp,
                         fontWeight = FontWeight.Bold,
                         color = overallColor
@@ -87,13 +86,13 @@ fun GradesScreen(
 
         // Subject cards
         items(subjectGrades, key = { it.subjectName }) { subject ->
-            SubjectCard(subject = subject, gradeMax = gradeMax)
+            SubjectCard(subject = subject, gradeScale = gradeScale)
         }
     }
 }
 
 @Composable
-private fun SubjectCard(subject: SubjectGrades, gradeMax: Int) {
+private fun SubjectCard(subject: SubjectGrades, gradeScale: GradeScale) {
     val subjectColor = subject.hexColor.toComposeColor()
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -125,12 +124,10 @@ private fun SubjectCard(subject: SubjectGrades, gradeMax: Int) {
                     )
                 }
                 Text(
-                    text = if (subject.average == subject.average.toLong().toDouble())
-                        subject.average.toLong().toString()
-                    else "%.1f".format(subject.average),
+                    text = gradeScale.displayValue(subject.average),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = gradeColor(subject.average, gradeMax)
+                    color = gradeColor(gradeScale.performance(subject.average))
                 )
             }
 
@@ -145,13 +142,12 @@ private fun SubjectCard(subject: SubjectGrades, gradeMax: Int) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (grade == grade.toLong().toDouble())
-                            grade.toLong().toString() else "%.1f".format(grade),
+                        text = gradeScale.displayValue(grade),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = gradeColor(grade, gradeMax),
+                        color = gradeColor(gradeScale.performance(grade)),
                         fontWeight = FontWeight.Medium
                     )
-                    val pct = ((grade / gradeMax) * 100).toInt()
+                    val pct = (gradeScale.performance(grade) * 100).toInt()
                     Text(
                         text = "$pct%",
                         style = MaterialTheme.typography.bodySmall,

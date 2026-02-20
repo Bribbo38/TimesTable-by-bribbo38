@@ -11,15 +11,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.lifecycle.lifecycleScope
 import com.selfhosttinker.timestable.ui.navigation.AppNavigation
 import com.selfhosttinker.timestable.ui.theme.*
+import androidx.glance.appwidget.updateAll
+import com.selfhosttinker.timestable.widget.TimetableWidget
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        lifecycleScope.launch {
+            TimetableWidget().updateAll(this@MainActivity)
+        }
         setContent {
             AppTheme {
                 val isDark = isSystemInDarkTheme()

@@ -1,5 +1,6 @@
 # Claude Code
 CLAUDE.md
+TODO.md
 .claude/
 
 # Original iOS/macOS source (kept locally for reference)
@@ -10,3 +11,5 @@ android/.gradle/
 android/app/build/
 android/build/
 android/local.properties
+*.apk
+*.aab

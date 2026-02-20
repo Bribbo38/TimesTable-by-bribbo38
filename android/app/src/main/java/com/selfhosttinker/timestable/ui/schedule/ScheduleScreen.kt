@@ -1,12 +1,15 @@
 package com.selfhosttinker.timestable.ui.schedule
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +33,6 @@ import com.selfhosttinker.timestable.ui.components.ClassCard
 import com.selfhosttinker.timestable.ui.components.GradientText
 import com.selfhosttinker.timestable.ui.components.pulsating
 import com.selfhosttinker.timestable.ui.theme.*
-import android.content.res.Configuration
 
 private val DAY_LABELS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -40,10 +42,10 @@ fun ScheduleScreen(
     onNavigateToClassDetail: (String) -> Unit,
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val selectedDay by viewModel.selectedDay.collectAsStateWithLifecycle()
+    val settings     by viewModel.settings.collectAsStateWithLifecycle()
+    val selectedDay  by viewModel.selectedDay.collectAsStateWithLifecycle()
     val selectedWeek by viewModel.selectedWeek.collectAsStateWithLifecycle()
-    val classes by viewModel.classesForDay.collectAsStateWithLifecycle()
+    val classes      by viewModel.classesForDay.collectAsStateWithLifecycle()
     val todayDay = remember { ScheduleViewModel.todayAppDay() }
 
     val configuration = LocalConfiguration.current
@@ -58,11 +60,8 @@ fun ScheduleScreen(
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToAddClass,
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add class", tint = Color.White)
+            FloatingActionButton(onClick = onNavigateToAddClass) {
+                Icon(Icons.Filled.Add, contentDescription = "Add class")
             }
         }
     ) { paddingValues ->
@@ -71,7 +70,6 @@ fun ScheduleScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Title
             Text(
                 text = "Schedule",
                 style = MaterialTheme.typography.headlineLarge,
@@ -79,26 +77,31 @@ fun ScheduleScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            // Week picker (only if numberOfWeeks > 1)
+            // Week picker — only if numberOfWeeks > 1
             if (settings.numberOfWeeks > 1) {
                 WeekPicker(
                     numberOfWeeks = settings.numberOfWeeks,
-                    selectedWeek = selectedWeek,
+                    selectedWeek  = selectedWeek,
                     onWeekSelected = viewModel::selectWeek,
-                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp)
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 8.dp)
                 )
             }
 
-            // Day picker
+            // Day picker — always scrollable so pills are never compressed
             DayPicker(
-                showWeekends = settings.showWeekends,
-                selectedDay = selectedDay,
-                todayDay = todayDay,
-                onDaySelected = viewModel::selectDay,
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)
+                showWeekends   = settings.showWeekends,
+                selectedDay    = selectedDay,
+                todayDay       = todayDay,
+                onDaySelected  = viewModel::selectDay,
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 12.dp)
             )
 
-            // Class list
             if (classes.isEmpty()) {
                 EmptyScheduleState(modifier = Modifier.fillMaxSize())
             } else {
@@ -127,10 +130,7 @@ private fun WeekPicker(
     onWeekSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (w in 1..numberOfWeeks) {
             val isSelected = w == selectedWeek
             val scale by animateFloatAsState(
@@ -141,6 +141,7 @@ private fun WeekPicker(
             Box(
                 modifier = Modifier
                     .scale(scale)
+                    .widthIn(min = 52.dp)
                     .clip(RoundedCornerShape(PillRadius))
                     .background(
                         if (isSelected) Brush.linearGradient(listOf(ElectricBlue, Indigo))
@@ -173,13 +174,10 @@ private fun DayPicker(
     modifier: Modifier = Modifier
 ) {
     val dayCount = if (showWeekends) 7 else 5
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (d in 1..dayCount) {
             val isSelected = d == selectedDay
-            val isToday = d == todayDay
+            val isToday    = d == todayDay
             val scale by animateFloatAsState(
                 targetValue = if (isSelected) 1.05f else 1f,
                 animationSpec = spring(dampingRatio = 0.6f),
@@ -191,7 +189,7 @@ private fun DayPicker(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(52.dp)         // fixed size — never compressed
                         .clip(RoundedCornerShape(ChipRadius))
                         .background(
                             if (isSelected) Brush.linearGradient(listOf(ElectricBlue, Indigo))
