@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Calendar icon placeholder -->
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M36,28 L72,28 Q76,28 76,32 L76,80 Q76,84 72,84 L36,84 Q32,84 32,80 L32,32 Q32,28 36,28 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,42 L68,42 L68,76 L40,76 Z"/>
+    <path
+        android:fillColor="#0A84FF"
+        android:pathData="M44,50 L64,50 M44,58 L64,58 M44,66 L56,66"
+        android:strokeColor="#0C0C1D"
+        android:strokeWidth="2"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,24 L42,34 Q42,36 44,36 Q46,36 46,34 L46,24 Q46,22 44,22 Q42,22 42,24 Z M62,24 L62,34 Q62,36 64,36 Q66,36 66,34 L66,24 Q66,22 64,22 Q62,22 62,24 Z"/>
+</vector>
