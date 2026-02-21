@@ -77,8 +77,8 @@ fun ScheduleScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            // Week picker — only if numberOfWeeks > 1
-            if (settings.numberOfWeeks > 1) {
+            // Week picker — only if repeating weeks enabled and numberOfWeeks > 1
+            if (settings.numberOfWeeks > 1 && settings.repeatingWeeksEnabled) {
                 WeekPicker(
                     numberOfWeeks = settings.numberOfWeeks,
                     selectedWeek  = selectedWeek,

@@ -39,6 +39,7 @@ fun AddEditClassScreen(
     val presets            by viewModel.presets.collectAsStateWithLifecycle()
     val overlappingClasses by viewModel.overlappingClasses.collectAsStateWithLifecycle()
     val isEditing = classId != null
+    val hasTimeError = state.startTimeMs >= state.endTimeMs
 
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker   by remember { mutableStateOf(false) }
@@ -194,6 +195,14 @@ fun AddEditClassScreen(
                     onClick = { showEndTimePicker = true }, modifier = Modifier.weight(1f)
                 )
             }
+            if (hasTimeError) {
+                Text(
+                    text = "End time must be after start time",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
 
             // Color picker
             Text("Color", style = MaterialTheme.typography.labelLarge)
@@ -213,7 +222,7 @@ fun AddEditClassScreen(
             // Save button
             Button(
                 onClick = viewModel::save,
-                enabled = state.name.isNotBlank(),
+                enabled = state.name.isNotBlank() && !hasTimeError,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(PillRadius)
             ) {

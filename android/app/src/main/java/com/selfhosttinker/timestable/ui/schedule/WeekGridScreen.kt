@@ -3,7 +3,6 @@ package com.selfhosttinker.timestable.ui.schedule
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,10 +29,13 @@ import com.selfhosttinker.timestable.domain.model.SchoolClass
 import com.selfhosttinker.timestable.ui.components.formatTime
 import com.selfhosttinker.timestable.ui.theme.CoralRed
 import com.selfhosttinker.timestable.ui.theme.ElectricBlue
+import com.selfhosttinker.timestable.ui.theme.Indigo
 import com.selfhosttinker.timestable.ui.theme.toComposeColor
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.util.Calendar
 import javax.inject.Inject
@@ -43,7 +45,6 @@ private const val HOUR_START = 7
 private const val HOUR_END   = 22
 private val HOUR_HEIGHT      = 60.dp
 private val TIME_COL_WIDTH   = 48.dp
-private val DAY_COL_WIDTH    = 130.dp
 
 @HiltViewModel
 class WeekGridViewModel @Inject constructor(
@@ -55,6 +56,11 @@ class WeekGridViewModel @Inject constructor(
 
     val settings: StateFlow<AppSettings> = settingsDataStore.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+
+    private val _selectedWeek = MutableStateFlow(1)
+    val selectedWeek: StateFlow<Int> = _selectedWeek.asStateFlow()
+
+    fun selectWeek(week: Int) { _selectedWeek.value = week }
 }
 
 @Composable
@@ -62,14 +68,14 @@ fun WeekGridScreen(
     onNavigateToClassDetail: (String) -> Unit,
     viewModel: WeekGridViewModel = hiltViewModel()
 ) {
-    val allClasses by viewModel.allClasses.collectAsStateWithLifecycle()
-    val settings   by viewModel.settings.collectAsStateWithLifecycle()
+    val allClasses   by viewModel.allClasses.collectAsStateWithLifecycle()
+    val settings     by viewModel.settings.collectAsStateWithLifecycle()
+    val selectedWeek by viewModel.selectedWeek.collectAsStateWithLifecycle()
     val todayDay = remember { ScheduleViewModel.todayAppDay() }
 
     val dayCount = if (settings.showWeekends) 7 else 5
 
-    val verticalScroll   = rememberScrollState(initial = 7 * 60)
-    val horizontalScroll = rememberScrollState()
+    val verticalScroll = rememberScrollState(initial = 7 * 60)
     val density = LocalDensity.current
     val hourHeightPx = with(density) { HOUR_HEIGHT.toPx() }
 
@@ -80,12 +86,32 @@ fun WeekGridScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Linked header (scrolls with body)
-        Row(modifier = Modifier.horizontalScroll(horizontalScroll)) {
+        // Week selector chips (shown when repeating weeks enabled)
+        if (settings.repeatingWeeksEnabled && settings.numberOfWeeks > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (w in 1..settings.numberOfWeeks) {
+                    FilterChip(
+                        selected = w == selectedWeek,
+                        onClick = { viewModel.selectWeek(w) },
+                        label = { Text("W$w") }
+                    )
+                }
+            }
+        }
+
+        // Day name header
+        Row(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.width(TIME_COL_WIDTH))
             for (day in 1..dayCount) {
                 Box(
-                    modifier = Modifier.width(DAY_COL_WIDTH).padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -104,7 +130,7 @@ fun WeekGridScreen(
         HorizontalDivider()
 
         Box(modifier = Modifier.fillMaxSize().verticalScroll(verticalScroll)) {
-            Row(modifier = Modifier.horizontalScroll(horizontalScroll)) {
+            Row(modifier = Modifier.fillMaxWidth()) {
                 // Time column
                 Column(modifier = Modifier.width(TIME_COL_WIDTH)) {
                     for (hour in HOUR_START until HOUR_END) {
@@ -121,12 +147,14 @@ fun WeekGridScreen(
                     }
                 }
 
-                // Day columns — respects showWeekends
+                // Day columns — fill available width equally
                 for (day in 1..dayCount) {
-                    val dayClasses = allClasses.filter { it.dayOfWeek == day }
+                    val dayClasses = allClasses.filter {
+                        it.dayOfWeek == day && it.weekIndex == selectedWeek
+                    }
                     Box(
                         modifier = Modifier
-                            .width(DAY_COL_WIDTH)
+                            .weight(1f)
                             .height(HOUR_HEIGHT * (HOUR_END - HOUR_START))
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -154,7 +182,7 @@ fun WeekGridScreen(
                                     .fillMaxWidth()
                                     .height(heightDp)
                                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                                    .background(classColor.copy(alpha = 0.85f))
+                                    .background(classColor)
                                     .clickable { onNavigateToClassDetail(schoolClass.id) }
                                     .padding(6.dp)
                             ) {

@@ -2,6 +2,7 @@ package com.selfhosttinker.timestable.ui.addclass
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.selfhosttinker.timestable.data.datastore.SettingsDataStore
 import com.selfhosttinker.timestable.data.repository.ClassRepository
 import com.selfhosttinker.timestable.data.repository.PresetRepository
 import com.selfhosttinker.timestable.domain.model.ClassPreset
@@ -30,7 +31,8 @@ data class AddEditClassState(
 @HiltViewModel
 class AddEditClassViewModel @Inject constructor(
     private val classRepository: ClassRepository,
-    private val presetRepository: PresetRepository
+    private val presetRepository: PresetRepository,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddEditClassState())
@@ -41,6 +43,19 @@ class AddEditClassViewModel @Inject constructor(
 
     val presets: StateFlow<List<ClassPreset>> = presetRepository.getAllPresets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val defaultDurationMs: StateFlow<Long> = settingsDataStore.settingsFlow
+        .map { it.defaultClassDurationMin * 60_000L }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 3_600_000L)
+
+    init {
+        viewModelScope.launch {
+            val durationMs = settingsDataStore.settingsFlow.first().defaultClassDurationMin * 60_000L
+            if (_state.value.id.isEmpty()) {
+                _state.update { it.copy(endTimeMs = it.startTimeMs + durationMs) }
+            }
+        }
+    }
 
     fun loadClass(classId: String?) {
         if (classId == null) return
@@ -86,13 +101,17 @@ class AddEditClassViewModel @Inject constructor(
     fun updateNotes(value: String)     { _state.update { it.copy(notes = value) } }
     fun updateDayOfWeek(value: Int)    { _state.update { it.copy(dayOfWeek = value) } }
     fun updateWeekIndex(value: Int)    { _state.update { it.copy(weekIndex = value) } }
-    fun updateStartTime(ms: Long)      { _state.update { it.copy(startTimeMs = ms) } }
     fun updateEndTime(ms: Long)        { _state.update { it.copy(endTimeMs = ms) } }
     fun updateColor(hex: String)       { _state.update { it.copy(hexColor = hex) } }
+
+    fun updateStartTime(ms: Long) {
+        _state.update { it.copy(startTimeMs = ms, endTimeMs = ms + defaultDurationMs.value) }
+    }
 
     fun save() {
         val s = _state.value
         if (s.name.isBlank()) return
+        if (s.startTimeMs >= s.endTimeMs) return
         viewModelScope.launch {
             val conflicts = classRepository.getOverlappingClasses(
                 s.dayOfWeek, s.startTimeMs, s.endTimeMs, s.id
@@ -111,6 +130,7 @@ class AddEditClassViewModel @Inject constructor(
 
     private suspend fun doSave() {
         val s = _state.value
+        if (s.startTimeMs >= s.endTimeMs) return
         val schoolClass = SchoolClass(
             id = s.id.ifEmpty { UUID.randomUUID().toString() },
             name = s.name.trim(),

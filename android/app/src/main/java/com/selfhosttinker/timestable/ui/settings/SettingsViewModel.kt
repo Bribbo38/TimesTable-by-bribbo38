@@ -40,6 +40,8 @@ class SettingsViewModel @Inject constructor(
     fun setAverageType(value: String) = viewModelScope.launch { settingsDataStore.setAverageType(value) }
     fun setGradeScale(value: String) = viewModelScope.launch { settingsDataStore.setGradeScale(value) }
     fun setNotificationsEnabled(value: Boolean) = viewModelScope.launch { settingsDataStore.setNotificationsEnabled(value) }
+    fun setDefaultClassDurationMin(value: Int) = viewModelScope.launch { settingsDataStore.setDefaultClassDurationMin(value) }
+    fun setUseHamburgerNav(value: Boolean) = viewModelScope.launch { settingsDataStore.setUseHamburgerNav(value) }
 
     fun addPreset(name: String, room: String?, teacher: String?, hexColor: String) {
         viewModelScope.launch {

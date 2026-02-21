@@ -96,6 +96,18 @@ fun SettingsScreen(
             )
         }
 
+        // ── Appearance ───────────────────────────────────────────────────────
+        item { SectionHeader("Appearance") }
+        item {
+            SettingsCard {
+                SettingsToggleRow(
+                    label = "Hamburger Menu",
+                    checked = settings.useHamburgerNav,
+                    onCheckedChange = viewModel::setUseHamburgerNav
+                )
+            }
+        }
+
         // ── Schedule ─────────────────────────────────────────────────────────
         item { SectionHeader("Schedule") }
         item {
@@ -119,6 +131,38 @@ fun SettingsScreen(
                         range = 1..4,
                         onValueChange = viewModel::setNumberOfWeeks
                     )
+                }
+                HorizontalDivider()
+                // Default class duration picker
+                var durationExpanded by remember { mutableStateOf(false) }
+                val durationOptions = listOf(30, 45, 60, 90, 120)
+                ExposedDropdownMenuBox(
+                    expanded = durationExpanded,
+                    onExpandedChange = { durationExpanded = !durationExpanded },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = "${settings.defaultClassDurationMin} min",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Default Class Duration") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = durationExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = durationExpanded,
+                        onDismissRequest = { durationExpanded = false }
+                    ) {
+                        durationOptions.forEach { minutes ->
+                            DropdownMenuItem(
+                                text = { Text("$minutes min") },
+                                onClick = {
+                                    viewModel.setDefaultClassDurationMin(minutes)
+                                    durationExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
