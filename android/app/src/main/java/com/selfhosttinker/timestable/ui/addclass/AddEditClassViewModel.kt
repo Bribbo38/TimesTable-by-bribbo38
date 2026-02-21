@@ -6,7 +6,6 @@ import com.selfhosttinker.timestable.data.repository.ClassRepository
 import com.selfhosttinker.timestable.data.repository.PresetRepository
 import com.selfhosttinker.timestable.domain.model.ClassPreset
 import com.selfhosttinker.timestable.domain.model.SchoolClass
-import com.selfhosttinker.timestable.ui.theme.ElectricBlue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -37,6 +36,9 @@ class AddEditClassViewModel @Inject constructor(
     private val _state = MutableStateFlow(AddEditClassState())
     val state: StateFlow<AddEditClassState> = _state.asStateFlow()
 
+    private val _overlappingClasses = MutableStateFlow<List<SchoolClass>>(emptyList())
+    val overlappingClasses: StateFlow<List<SchoolClass>> = _overlappingClasses.asStateFlow()
+
     val presets: StateFlow<List<ClassPreset>> = presetRepository.getAllPresets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -58,6 +60,12 @@ class AddEditClassViewModel @Inject constructor(
                     hexColor = schoolClass.hexColor
                 )
             }
+        }
+    }
+
+    fun initDay(day: Int) {
+        if (day > 0 && _state.value.id.isEmpty()) {
+            _state.update { it.copy(dayOfWeek = day) }
         }
     }
 
@@ -86,20 +94,36 @@ class AddEditClassViewModel @Inject constructor(
         val s = _state.value
         if (s.name.isBlank()) return
         viewModelScope.launch {
-            val schoolClass = SchoolClass(
-                id = s.id.ifEmpty { UUID.randomUUID().toString() },
-                name = s.name.trim(),
-                room = s.room.trim().ifEmpty { null },
-                teacher = s.teacher.trim().ifEmpty { null },
-                notes = s.notes.trim().ifEmpty { null },
-                dayOfWeek = s.dayOfWeek,
-                weekIndex = s.weekIndex,
-                startTimeMs = s.startTimeMs,
-                endTimeMs = s.endTimeMs,
-                hexColor = s.hexColor
+            val conflicts = classRepository.getOverlappingClasses(
+                s.dayOfWeek, s.startTimeMs, s.endTimeMs, s.id
             )
-            classRepository.saveClass(schoolClass)
-            _state.update { it.copy(isSaved = true) }
+            if (conflicts.isNotEmpty()) {
+                _overlappingClasses.value = conflicts
+            } else {
+                doSave()
+            }
         }
+    }
+
+    fun saveForce() { viewModelScope.launch { doSave() } }
+
+    fun clearOverlapWarning() { _overlappingClasses.value = emptyList() }
+
+    private suspend fun doSave() {
+        val s = _state.value
+        val schoolClass = SchoolClass(
+            id = s.id.ifEmpty { UUID.randomUUID().toString() },
+            name = s.name.trim(),
+            room = s.room.trim().ifEmpty { null },
+            teacher = s.teacher.trim().ifEmpty { null },
+            notes = s.notes.trim().ifEmpty { null },
+            dayOfWeek = s.dayOfWeek,
+            weekIndex = s.weekIndex,
+            startTimeMs = s.startTimeMs,
+            endTimeMs = s.endTimeMs,
+            hexColor = s.hexColor
+        )
+        classRepository.saveClass(schoolClass)
+        _state.update { it.copy(isSaved = true) }
     }
 }

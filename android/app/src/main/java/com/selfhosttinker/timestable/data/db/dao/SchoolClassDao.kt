@@ -27,4 +27,14 @@ interface SchoolClassDao {
 
     @Query("DELETE FROM school_classes")
     suspend fun deleteAll()
+
+    @Query("""
+        SELECT * FROM school_classes
+        WHERE dayOfWeek = :day
+        AND id != :excludeId
+        AND NOT (endTimeMs <= :startTimeMs OR startTimeMs >= :endTimeMs)
+    """)
+    suspend fun getOverlappingClasses(
+        day: Int, startTimeMs: Long, endTimeMs: Long, excludeId: String
+    ): List<SchoolClassEntity>
 }

@@ -28,7 +28,7 @@ private val bottomNavItems = listOf(
 )
 
 // Non-tab routes
-private const val ROUTE_ADD_CLASS    = "add_class"
+private const val ROUTE_ADD_CLASS    = "add_class?day={dayOfWeek}"
 private const val ROUTE_EDIT_CLASS   = "edit_class/{classId}"
 private const val ROUTE_CLASS_DETAIL = "class_detail/{classId}"
 
@@ -71,7 +71,7 @@ fun AppNavigation() {
         ) {
             composable(Screen.Schedule.route) {
                 ScheduleScreen(
-                    onNavigateToAddClass = { navController.navigate(ROUTE_ADD_CLASS) },
+                    onNavigateToAddClass = { day -> navController.navigate("add_class?day=$day") },
                     onNavigateToClassDetail = { classId ->
                         navController.navigate("class_detail/$classId")
                     }
@@ -86,9 +86,13 @@ fun AppNavigation() {
             composable(Screen.Settings.route) {
                 SettingsScreen()
             }
-            composable(ROUTE_ADD_CLASS) {
+            composable(
+                route = ROUTE_ADD_CLASS,
+                arguments = listOf(navArgument("dayOfWeek") { type = NavType.IntType; defaultValue = 0 })
+            ) { backStackEntry ->
                 AddEditClassScreen(
                     classId = null,
+                    initialDay = backStackEntry.arguments?.getInt("dayOfWeek") ?: 0,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

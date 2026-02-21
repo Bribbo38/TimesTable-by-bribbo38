@@ -38,7 +38,7 @@ private val DAY_LABELS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 @Composable
 fun ScheduleScreen(
-    onNavigateToAddClass: () -> Unit,
+    onNavigateToAddClass: (Int) -> Unit,
     onNavigateToClassDetail: (String) -> Unit,
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
@@ -60,7 +60,7 @@ fun ScheduleScreen(
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddClass) {
+            FloatingActionButton(onClick = { onNavigateToAddClass(selectedDay) }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add class")
             }
         }

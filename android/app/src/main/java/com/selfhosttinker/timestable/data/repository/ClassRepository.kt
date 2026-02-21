@@ -33,6 +33,11 @@ class ClassRepository @Inject constructor(
     suspend fun deleteAllClasses() {
         dao.deleteAll()
     }
+
+    suspend fun getOverlappingClasses(
+        day: Int, startTimeMs: Long, endTimeMs: Long, excludeId: String
+    ): List<SchoolClass> =
+        dao.getOverlappingClasses(day, startTimeMs, endTimeMs, excludeId).map { it.toDomain() }
 }
 
 private fun SchoolClassEntity.toDomain() = SchoolClass(

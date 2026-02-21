@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import com.selfhosttinker.timestable.ui.navigation.AppNavigation
 import com.selfhosttinker.timestable.ui.theme.*
 import androidx.glance.appwidget.updateAll
+import com.selfhosttinker.timestable.widget.NowNextWidget
 import com.selfhosttinker.timestable.widget.TimetableWidget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         lifecycleScope.launch {
             TimetableWidget().updateAll(this@MainActivity)
+            NowNextWidget().updateAll(this@MainActivity)
         }
         setContent {
             AppTheme {

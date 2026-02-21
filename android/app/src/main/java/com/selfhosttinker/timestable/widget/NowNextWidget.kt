@@ -28,18 +28,20 @@ import com.selfhosttinker.timestable.ui.components.formatTime
 import kotlinx.coroutines.flow.first
 import java.util.Calendar
 
-class TimetableWidget : GlanceAppWidget() {
+class NowNextWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Responsive(
         setOf(
-            DpSize(110.dp, 110.dp),  // small
-            DpSize(220.dp, 110.dp)   // medium
+            DpSize(110.dp, 80.dp),
+            DpSize(220.dp, 80.dp)
         )
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val todayClasses = getTodayClasses(context)
         val nowMs = System.currentTimeMillis() % 86_400_000L
+        val current = todayClasses.firstOrNull { it.startTimeMs <= nowMs && it.endTimeMs > nowMs }
+        val next    = todayClasses.firstOrNull { it.startTimeMs > nowMs }
 
         provideContent {
             val size = LocalSize.current
@@ -54,18 +56,10 @@ class TimetableWidget : GlanceAppWidget() {
                         .padding(12.dp)
                         .clickable(actionStartActivity<MainActivity>())
                 ) {
-                    if (todayClasses.isEmpty()) {
-                        Text(
-                            text = "No classes today",
-                            style = TextStyle(
-                                color = GlanceTheme.colors.onSurface,
-                                fontWeight = FontWeight.Medium
-                            )
-                        )
-                    } else if (isSmall) {
-                        SmallWidgetContent(todayClasses.first())
+                    if (isSmall) {
+                        SmallNowNextContent(current, next)
                     } else {
-                        MediumWidgetContent(todayClasses, nowMs)
+                        MediumNowNextContent(current, next)
                     }
                 }
             }
@@ -105,53 +99,35 @@ class TimetableWidget : GlanceAppWidget() {
 }
 
 @Composable
-private fun SmallWidgetContent(schoolClass: SchoolClass) {
+private fun SmallNowNextContent(current: SchoolClass?, next: SchoolClass?) {
     Column(modifier = GlanceModifier.fillMaxSize()) {
-        Text(
-            text = schoolClass.name,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontWeight = FontWeight.Bold
-            )
-        )
-        Text(
-            text = formatTime(schoolClass.startTimeMs),
-            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
-        )
-        schoolClass.room?.let { room ->
-            Text(
-                text = room,
-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
-            )
-        }
-    }
-}
-
-@Composable
-private fun MediumWidgetContent(classes: List<SchoolClass>, nowMs: Long) {
-    val past    = classes.filter { it.endTimeMs <= nowMs }
-    val current = classes.filter { it.startTimeMs <= nowMs && it.endTimeMs > nowMs }
-    val future  = classes.filter { it.startTimeMs > nowMs }
-    val showNowDivider = past.isNotEmpty() || current.isNotEmpty()
-
-    Column(modifier = GlanceModifier.fillMaxSize()) {
-        past.takeLast(1).forEach { ClassRow(it, dimmed = true) }
-        if (showNowDivider) {
-            Text(
-                text = "── Now ──",
-                style = TextStyle(
-                    color = GlanceTheme.colors.primary,
-                    fontWeight = FontWeight.Medium
+        if (current != null) {
+            val color = try {
+                ColorProvider(Color(android.graphics.Color.parseColor(current.hexColor)))
+            } catch (e: Exception) {
+                GlanceTheme.colors.primary
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = GlanceModifier.width(4.dp).height(20.dp).background(color)) { }
+                Spacer(GlanceModifier.width(6.dp))
+                Text(
+                    text = current.name,
+                    style = TextStyle(color = GlanceTheme.colors.onSurface, fontWeight = FontWeight.Bold)
                 )
+            }
+            Text(
+                text = "${formatTime(current.startTimeMs)}–${formatTime(current.endTimeMs)}",
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
+            )
+        } else {
+            Text(
+                text = "Free now",
+                style = TextStyle(color = GlanceTheme.colors.onSurface, fontWeight = FontWeight.Medium)
             )
         }
-        current.forEach { ClassRow(it, bold = true) }
-        val remaining = 3 - past.takeLast(1).size - current.size
-        future.take(maxOf(0, remaining)).forEach { ClassRow(it) }
-        val more = future.size - maxOf(0, remaining)
-        if (more > 0) {
+        if (next != null) {
             Text(
-                text = "+$more more",
+                text = "Up next: ${next.name} ${formatTime(next.startTimeMs)}",
                 style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
             )
         }
@@ -159,44 +135,41 @@ private fun MediumWidgetContent(classes: List<SchoolClass>, nowMs: Long) {
 }
 
 @Composable
-private fun ClassRow(
-    schoolClass: SchoolClass,
-    dimmed: Boolean = false,
-    bold: Boolean = false
-) {
-    val classColor = try {
-        ColorProvider(Color(android.graphics.Color.parseColor(schoolClass.hexColor)))
-    } catch (e: Exception) {
-        GlanceTheme.colors.primary
+private fun MediumNowNextContent(current: SchoolClass?, next: SchoolClass?) {
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        NowNextRow(label = "Current:", schoolClass = current, emptyText = "Free now")
+        NowNextRow(label = "Up next:", schoolClass = next, emptyText = "No more classes")
     }
-    val textColor = if (dimmed) GlanceTheme.colors.onSurfaceVariant else GlanceTheme.colors.onSurface
-    val fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal
+}
 
+@Composable
+private fun NowNextRow(label: String, schoolClass: SchoolClass?, emptyText: String) {
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = GlanceModifier
-                .width(4.dp)
-                .height(20.dp)
-                .background(classColor)
-        ) { }
-        Spacer(GlanceModifier.width(6.dp))
         Text(
-            text = formatTime(schoolClass.startTimeMs),
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            ),
-            modifier = GlanceModifier.width(50.dp)
+            text = label,
+            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontWeight = FontWeight.Medium),
+            modifier = GlanceModifier.width(60.dp)
         )
-        Text(
-            text = schoolClass.name,
-            style = TextStyle(
-                color = textColor,
-                fontWeight = fontWeight
+        if (schoolClass != null) {
+            val color = try {
+                ColorProvider(Color(android.graphics.Color.parseColor(schoolClass.hexColor)))
+            } catch (e: Exception) {
+                GlanceTheme.colors.primary
+            }
+            Box(modifier = GlanceModifier.width(4.dp).height(20.dp).background(color)) { }
+            Spacer(GlanceModifier.width(6.dp))
+            Text(
+                text = "${schoolClass.name}  ${formatTime(schoolClass.startTimeMs)}–${formatTime(schoolClass.endTimeMs)}",
+                style = TextStyle(color = GlanceTheme.colors.onSurface, fontWeight = FontWeight.Normal)
             )
-        )
+        } else {
+            Text(
+                text = emptyText,
+                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant)
+            )
+        }
     }
 }

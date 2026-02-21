@@ -289,6 +289,9 @@ private fun GradeEntryDialog(
     var gradeText      by remember { mutableStateOf("") }
     var selectedLetter by remember { mutableStateOf<Pair<String, Double>?>(null) }
 
+    val parsedGrade = gradeText.toDoubleOrNull()
+    val isOutOfRange = parsedGrade != null && (parsedGrade < gradeScale.min || parsedGrade > gradeScale.max)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Complete Task") },
@@ -327,17 +330,28 @@ private fun GradeEntryDialog(
                         onValueChange = { gradeText = it.filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("Grade (${gradeScale.min.toInt()}–${gradeScale.max.toInt()})") },
                         singleLine = true,
+                        isError = isOutOfRange,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (isOutOfRange) {
+                        Text(
+                            text = "Must be ${gradeScale.min.toInt()}–${gradeScale.max.toInt()}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val grade = if (gradeScale.isLetter) selectedLetter?.second
-                            else gradeText.toDoubleOrNull()
-                onConfirm(grade)
-            }) { Text("Save") }
+            TextButton(
+                onClick = {
+                    val grade = if (gradeScale.isLetter) selectedLetter?.second
+                                else parsedGrade?.coerceIn(gradeScale.min, gradeScale.max)
+                    onConfirm(grade)
+                },
+                enabled = !isOutOfRange
+            ) { Text("Save") }
         },
         dismissButton = {
             Row {

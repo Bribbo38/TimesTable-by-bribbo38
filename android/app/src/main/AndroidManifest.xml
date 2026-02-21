@@ -62,6 +62,18 @@
                 android:resource="@xml/timetable_widget_info" />
         </receiver>
 
+        <!-- Now & Next Widget -->
+        <receiver
+            android:name=".widget.NowNextWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/now_next_widget_info" />
+        </receiver>
+
         <!-- FileProvider for JSON export -->
         <provider
             android:name="androidx.core.content.FileProvider"

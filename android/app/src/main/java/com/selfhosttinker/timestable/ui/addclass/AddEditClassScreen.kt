@@ -31,18 +31,46 @@ private val DAY_OPTIONS = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "
 @Composable
 fun AddEditClassScreen(
     classId: String?,
+    initialDay: Int = 0,
     onNavigateBack: () -> Unit,
     viewModel: AddEditClassViewModel = hiltViewModel()
 ) {
-    val state   by viewModel.state.collectAsStateWithLifecycle()
-    val presets by viewModel.presets.collectAsStateWithLifecycle()
+    val state              by viewModel.state.collectAsStateWithLifecycle()
+    val presets            by viewModel.presets.collectAsStateWithLifecycle()
+    val overlappingClasses by viewModel.overlappingClasses.collectAsStateWithLifecycle()
     val isEditing = classId != null
 
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker   by remember { mutableStateOf(false) }
 
-    LaunchedEffect(classId)    { viewModel.loadClass(classId) }
+    LaunchedEffect(classId)       { viewModel.loadClass(classId) }
+    LaunchedEffect(initialDay)    { viewModel.initDay(initialDay) }
     LaunchedEffect(state.isSaved) { if (state.isSaved) onNavigateBack() }
+
+    if (overlappingClasses.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearOverlapWarning() },
+            title = { Text("Schedule Conflict") },
+            text = {
+                Column {
+                    Text("This class overlaps with:")
+                    Spacer(Modifier.height(8.dp))
+                    overlappingClasses.forEach { conflict ->
+                        Text("• ${conflict.name} (${formatTime(conflict.startTimeMs)}–${formatTime(conflict.endTimeMs)})")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearOverlapWarning()
+                    viewModel.saveForce()
+                }) { Text("Add Anyway") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearOverlapWarning() }) { Text("Go Back") }
+            }
+        )
+    }
 
     val previewClass = SchoolClass(
         name        = state.name.ifEmpty { "Class Name" },
