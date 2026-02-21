@@ -23,7 +23,9 @@ data class AppSettings(
     val notificationsEnabled: Boolean = false,
     val defaultClassDurationMin: Int = 60,
     val useHamburgerNav: Boolean = false,
-    val navStyleChosen: Boolean = false
+    val navStyleChosen: Boolean = false,
+    val useSchoolPlannerTheme: Boolean = false,
+    val themeChosen: Boolean = false
 )
 
 @Singleton
@@ -40,6 +42,8 @@ class SettingsDataStore @Inject constructor(
         val DEFAULT_CLASS_DURATION_MIN = intPreferencesKey("default_class_duration_min")
         val USE_HAMBURGER_NAV          = booleanPreferencesKey("use_hamburger_nav")
         val NAV_STYLE_CHOSEN           = booleanPreferencesKey("nav_style_chosen")
+        val USE_SP_THEME               = booleanPreferencesKey("use_sp_theme")
+        val THEME_CHOSEN               = booleanPreferencesKey("theme_chosen")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -57,7 +61,9 @@ class SettingsDataStore @Inject constructor(
                 notificationsEnabled   = prefs[Keys.NOTIFICATIONS_ENABLED]      ?: false,
                 defaultClassDurationMin = prefs[Keys.DEFAULT_CLASS_DURATION_MIN] ?: 60,
                 useHamburgerNav        = prefs[Keys.USE_HAMBURGER_NAV]           ?: false,
-                navStyleChosen         = prefs[Keys.NAV_STYLE_CHOSEN]            ?: false
+                navStyleChosen         = prefs[Keys.NAV_STYLE_CHOSEN]            ?: false,
+                useSchoolPlannerTheme  = prefs[Keys.USE_SP_THEME]                ?: false,
+                themeChosen            = prefs[Keys.THEME_CHOSEN]                ?: false
             )
         }
 
@@ -70,4 +76,6 @@ class SettingsDataStore @Inject constructor(
     suspend fun setDefaultClassDurationMin(value: Int)    { context.dataStore.edit { it[Keys.DEFAULT_CLASS_DURATION_MIN] = value } }
     suspend fun setUseHamburgerNav(value: Boolean)        { context.dataStore.edit { it[Keys.USE_HAMBURGER_NAV] = value } }
     suspend fun setNavStyleChosen(value: Boolean)         { context.dataStore.edit { it[Keys.NAV_STYLE_CHOSEN] = value } }
+    suspend fun setUseSchoolPlannerTheme(value: Boolean)  { context.dataStore.edit { it[Keys.USE_SP_THEME] = value } }
+    suspend fun setThemeChosen(value: Boolean)            { context.dataStore.edit { it[Keys.THEME_CHOSEN] = value } }
 }

@@ -25,4 +25,11 @@ class AppNavigationViewModel @Inject constructor(
             settingsDataStore.setNavStyleChosen(true)
         }
     }
+
+    fun setTheme(useSP: Boolean) {
+        viewModelScope.launch {
+            settingsDataStore.setUseSchoolPlannerTheme(useSP)
+            settingsDataStore.setThemeChosen(true)
+        }
+    }
 }

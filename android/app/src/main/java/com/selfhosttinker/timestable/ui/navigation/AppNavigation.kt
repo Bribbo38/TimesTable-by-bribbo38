@@ -24,45 +24,208 @@ import com.selfhosttinker.timestable.ui.classdetail.ClassDetailScreen
 import com.selfhosttinker.timestable.ui.grades.GradesScreen
 import com.selfhosttinker.timestable.ui.schedule.ScheduleScreen
 import com.selfhosttinker.timestable.ui.settings.SettingsScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPGradesScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPPeopleScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPScheduleScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPSettingsScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPSubjectDetailScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPTasksScreen
+import com.selfhosttinker.timestable.ui.spdesign.SPTeacherDetailScreen
 import com.selfhosttinker.timestable.ui.tasks.TaskListScreen
+import com.selfhosttinker.timestable.ui.theme.SPAppTheme
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Schedule : Screen("schedule",  "Schedule",  Icons.Outlined.CalendarMonth)
     object Tasks    : Screen("tasks",     "Tasks",     Icons.Outlined.Checklist)
-    object Grades   : Screen("grades",   "Grades",    Icons.Outlined.BarChart)
-    object Settings : Screen("settings", "Settings",  Icons.Outlined.Settings)
+    object Grades   : Screen("grades",    "Grades",    Icons.Outlined.BarChart)
+    object People   : Screen("people",    "People",    Icons.Outlined.Group)
+    object Settings : Screen("settings",  "Settings",  Icons.Outlined.Settings)
 }
 
-private val bottomNavItems = listOf(
+// Classic mode uses 4 tabs; SP uses 5
+private val classicBottomNavItems = listOf(
     Screen.Schedule, Screen.Tasks, Screen.Grades, Screen.Settings
+)
+private val spBottomNavItems = listOf(
+    Screen.Schedule, Screen.Grades, Screen.Tasks, Screen.People, Screen.Settings
 )
 
 // Non-tab routes
-private const val ROUTE_ADD_CLASS    = "add_class?day={dayOfWeek}"
-private const val ROUTE_EDIT_CLASS   = "edit_class/{classId}"
-private const val ROUTE_CLASS_DETAIL = "class_detail/{classId}"
+private const val ROUTE_ADD_CLASS        = "add_class?day={dayOfWeek}"
+private const val ROUTE_EDIT_CLASS       = "edit_class/{classId}"
+private const val ROUTE_CLASS_DETAIL     = "class_detail/{classId}"
+private const val ROUTE_SUBJECT_DETAIL   = "subject_detail/{subjectId}"
+private const val ROUTE_TEACHER_DETAIL   = "teacher_detail/{teacherId}"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
+    val settings by navViewModel.settings.collectAsStateWithLifecycle()
+
+    // Step 1: Theme not chosen yet → show ThemeOnboardingScreen
+    if (!settings.themeChosen) {
+        ThemeOnboardingScreen(onChoose = { navViewModel.setTheme(it) })
+        return
+    }
+
+    // Step 2: Classic mode but nav style not chosen → show NavOnboardingScreen
+    if (!settings.useSchoolPlannerTheme && !settings.navStyleChosen) {
+        NavOnboardingScreen(onChoose = { navViewModel.setNavStyle(it) })
+        return
+    }
+
+    // Step 3: Fully set up — render the correct themed app
+    if (settings.useSchoolPlannerTheme) {
+        SPAppTheme {
+            SPAppContent()
+        }
+    } else {
+        ClassicAppContent()
+    }
+}
+
+// ── SP app content (always bottom bar) ───────────────────────────────────────
+
+@Composable
+private fun SPAppContent() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val settings by navViewModel.settings.collectAsStateWithLifecycle()
+    val tabRoutes = spBottomNavItems.map { it.route }
+
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val showBottomBar = currentRoute in tabRoutes && !isLandscape
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar {
+                    spBottomNavItems.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = screen.label) },
+                            label = { Text(screen.label) },
+                            selected = currentRoute == screen.route,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        SPNavHost(navController, innerPadding)
+    }
+}
+
+@Composable
+private fun SPNavHost(navController: NavHostController, innerPadding: PaddingValues) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Schedule.route,
+        modifier = Modifier.padding(innerPadding)
+    ) {
+        composable(Screen.Schedule.route) {
+            SPScheduleScreen(
+                onNavigateToAddClass = { day -> navController.navigate("add_class?day=$day") },
+                onNavigateToClassDetail = { classId -> navController.navigate("class_detail/$classId") }
+            )
+        }
+        composable(Screen.Grades.route) {
+            SPGradesScreen()
+        }
+        composable(Screen.Tasks.route) {
+            SPTasksScreen()
+        }
+        composable(Screen.People.route) {
+            SPPeopleScreen(
+                onNavigateToSubjectDetail = { id -> navController.navigate("subject_detail/$id") },
+                onNavigateToTeacherDetail = { id -> navController.navigate("teacher_detail/$id") }
+            )
+        }
+        composable(Screen.Settings.route) {
+            SPSettingsScreen()
+        }
+        composable(
+            route = ROUTE_ADD_CLASS,
+            arguments = listOf(navArgument("dayOfWeek") { type = NavType.IntType; defaultValue = 0 })
+        ) { backStackEntry ->
+            AddEditClassScreen(
+                classId = null,
+                initialDay = backStackEntry.arguments?.getInt("dayOfWeek") ?: 0,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = ROUTE_EDIT_CLASS,
+            arguments = listOf(navArgument("classId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            AddEditClassScreen(
+                classId = backStackEntry.arguments?.getString("classId"),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = ROUTE_CLASS_DETAIL,
+            arguments = listOf(navArgument("classId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            ClassDetailScreen(
+                classId = backStackEntry.arguments?.getString("classId") ?: "",
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToEdit = { classId -> navController.navigate("edit_class/$classId") }
+            )
+        }
+        composable(
+            route = ROUTE_SUBJECT_DETAIL,
+            arguments = listOf(navArgument("subjectId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            SPSubjectDetailScreen(
+                subjectId = backStackEntry.arguments?.getString("subjectId") ?: "",
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToTeacher = { teacherId -> navController.navigate("teacher_detail/$teacherId") }
+            )
+        }
+        composable(
+            route = ROUTE_TEACHER_DETAIL,
+            arguments = listOf(navArgument("teacherId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            SPTeacherDetailScreen(
+                teacherId = backStackEntry.arguments?.getString("teacherId") ?: "",
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToSubject = { subjectId -> navController.navigate("subject_detail/$subjectId") }
+            )
+        }
+    }
+}
+
+// ── Classic app content (hamburger or bottom bar) ─────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ClassicAppContent() {
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val tabRoutes = bottomNavItems.map { it.route }
-    val showBottomBar = currentRoute in tabRoutes && !isLandscape && !settings.useHamburgerNav
-    val showHamburgerBar = currentRoute in tabRoutes && settings.useHamburgerNav
+    val tabRoutes = classicBottomNavItems.map { it.route }
+    val classicSettings by hiltViewModel<AppNavigationViewModel>().settings.collectAsStateWithLifecycle()
+    val showBottomBar = currentRoute in tabRoutes && !isLandscape && !classicSettings.useHamburgerNav
+    val showHamburgerBar = currentRoute in tabRoutes && classicSettings.useHamburgerNav
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
-    val currentScreen = bottomNavItems.firstOrNull { it.route == currentRoute }
+    val currentScreen = classicBottomNavItems.firstOrNull { it.route == currentRoute }
 
-    val navHostContent: @Composable (PaddingValues) -> Unit = { innerPadding ->
+    val classicNavHostContent: @Composable (PaddingValues) -> Unit = { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = Screen.Schedule.route,
@@ -71,9 +234,7 @@ fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
             composable(Screen.Schedule.route) {
                 ScheduleScreen(
                     onNavigateToAddClass = { day -> navController.navigate("add_class?day=$day") },
-                    onNavigateToClassDetail = { classId ->
-                        navController.navigate("class_detail/$classId")
-                    }
+                    onNavigateToClassDetail = { classId -> navController.navigate("class_detail/$classId") }
                 )
             }
             composable(Screen.Tasks.route) {
@@ -111,9 +272,7 @@ fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
                 ClassDetailScreen(
                     classId = backStackEntry.arguments?.getString("classId") ?: "",
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToEdit = { classId ->
-                        navController.navigate("edit_class/$classId")
-                    }
+                    onNavigateToEdit = { classId -> navController.navigate("edit_class/$classId") }
                 )
             }
         }
@@ -132,7 +291,7 @@ fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    bottomNavItems.forEach { screen ->
+                    classicBottomNavItems.forEach { screen ->
                         NavigationDrawerItem(
                             icon = { Icon(screen.icon, contentDescription = null) },
                             label = { Text(screen.label) },
@@ -162,23 +321,21 @@ fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
                         }
                     )
                 }
-            ) { innerPadding -> navHostContent(innerPadding) }
+            ) { innerPadding -> classicNavHostContent(innerPadding) }
         }
     } else {
         Scaffold(
             bottomBar = {
                 if (showBottomBar) {
                     NavigationBar {
-                        bottomNavItems.forEach { screen ->
+                        classicBottomNavItems.forEach { screen ->
                             NavigationBarItem(
                                 icon = { Icon(screen.icon, contentDescription = screen.label) },
                                 label = { Text(screen.label) },
                                 selected = currentRoute == screen.route,
                                 onClick = {
                                     navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.startDestinationId) {
-                                            saveState = true
-                                        }
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -188,6 +345,6 @@ fun AppNavigation(navViewModel: AppNavigationViewModel = hiltViewModel()) {
                     }
                 }
             }
-        ) { innerPadding -> navHostContent(innerPadding) }
+        ) { innerPadding -> classicNavHostContent(innerPadding) }
     }
 }

@@ -42,6 +42,7 @@ class SettingsViewModel @Inject constructor(
     fun setNotificationsEnabled(value: Boolean) = viewModelScope.launch { settingsDataStore.setNotificationsEnabled(value) }
     fun setDefaultClassDurationMin(value: Int) = viewModelScope.launch { settingsDataStore.setDefaultClassDurationMin(value) }
     fun setUseHamburgerNav(value: Boolean) = viewModelScope.launch { settingsDataStore.setUseHamburgerNav(value) }
+    fun setUseSpTheme(value: Boolean)      = viewModelScope.launch { settingsDataStore.setUseSchoolPlannerTheme(value) }
 
     fun addPreset(name: String, room: String?, teacher: String?, hexColor: String) {
         viewModelScope.launch {

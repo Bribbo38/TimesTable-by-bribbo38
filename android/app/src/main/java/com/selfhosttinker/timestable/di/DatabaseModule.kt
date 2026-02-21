@@ -4,8 +4,11 @@ import android.content.Context
 import androidx.room.Room
 import com.selfhosttinker.timestable.data.db.AppDatabase
 import com.selfhosttinker.timestable.data.db.dao.ClassPresetDao
+import com.selfhosttinker.timestable.data.db.dao.GradeEntryDao
 import com.selfhosttinker.timestable.data.db.dao.SchoolClassDao
 import com.selfhosttinker.timestable.data.db.dao.StudyTaskDao
+import com.selfhosttinker.timestable.data.db.dao.SubjectTeacherDao
+import com.selfhosttinker.timestable.data.db.dao.TeacherDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,7 +24,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "timestable.db")
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
@@ -32,4 +35,13 @@ object DatabaseModule {
 
     @Provides
     fun provideClassPresetDao(db: AppDatabase): ClassPresetDao = db.classPresetDao()
+
+    @Provides
+    fun provideGradeEntryDao(db: AppDatabase): GradeEntryDao = db.gradeEntryDao()
+
+    @Provides
+    fun provideTeacherDao(db: AppDatabase): TeacherDao = db.teacherDao()
+
+    @Provides
+    fun provideSubjectTeacherDao(db: AppDatabase): SubjectTeacherDao = db.subjectTeacherDao()
 }
